@@ -88,13 +88,9 @@
                     <span class="nav-icon">💰</span>
                     <span class="nav-text">Sponsors</span>
                 </a>
-                <a href="#" class="nav-item" data-page="logistics">
-                    <span class="nav-icon">📦</span>
-                    <span class="nav-text">Logistics</span>
-                </a>
-                <a href="#" class="nav-item" data-page="communication">
+                <a href="#" class="nav-item" data-page="announcements">
                     <span class="nav-icon">💬</span>
-                    <span class="nav-text">Communication</span>
+                    <span class="nav-text">Announcements</span>
                 </a>
                 <a href="#" class="nav-item" data-page="analytics">
                     <span class="nav-icon">📊</span>
@@ -287,6 +283,57 @@
                         <div class="modal-footer">
                             <button type="button" class="btn btn--secondary" onclick="closeModal()">Cancel</button>
                             <button type="submit" class="btn btn--primary">Save Sponsor</button>
+                        </div>
+                    </form>
+                </div>
+            </div>
+
+            <div class="modal-overlay" id="teamModalOverlay" style="display: none;">
+                <div class="modal">
+                    <div class="modal-header">
+                        <h3 class="modal-title" id="teamModalTitle">Edit Team</h3>
+                        <button class="modal-close" onclick="closeModal()">&times;</button>
+                    </div>
+                    <form id="teamForm">
+                        <div class="modal-body">
+                            <input type="hidden" id="teamIdInput">
+                            <div class="form-group">
+                                <label class="form-label">Team Name</label>
+                                <input type="text" id="teamNameInput" class="form-control" required>
+                            </div>
+                             <div class="form-group">
+                                <label class="form-label">Team Icon</label>
+                                <input type="text" id="teamIconInput" class="form-control" placeholder="Enter an emoji, e.g., 💻" required>
+                            </div>
+                        </div>
+                        <div class="modal-footer">
+                            <button type="button" class="btn btn--secondary" onclick="closeModal()">Cancel</button>
+                            <button type="submit" class="btn btn--primary">Save Team</button>
+                        </div>
+                    </form>
+                </div>
+            </div>
+
+            <div class="modal-overlay" id="announcementModalOverlay" style="display: none;">
+                <div class="modal">
+                    <div class="modal-header">
+                        <h3 class="modal-title" id="announcementModalTitle">Post New Announcement</h3>
+                        <button class="modal-close" onclick="closeModal()">&times;</button>
+                    </div>
+                    <form id="announcementForm">
+                        <div class="modal-body">
+                            <div class="form-group">
+                                <label class="form-label">Title</label>
+                                <input type="text" id="announcementTitleInput" class="form-control" required>
+                            </div>
+                             <div class="form-group">
+                                <label class="form-label">Message</label>
+                                <textarea id="announcementContentInput" class="form-control" rows="5" placeholder="Write your announcement here..." required></textarea>
+                            </div>
+                        </div>
+                        <div class="modal-footer">
+                            <button type="button" class="btn btn--secondary" onclick="closeModal()">Cancel</button>
+                            <button type="submit" class="btn btn--primary">Post Announcement</button>
                         </div>
                     </form>
                 </div>

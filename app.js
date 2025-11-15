@@ -2,7 +2,6 @@
 
 // ---------------- CONFIG ----------------
 const SYMPOSIUM_DATE = new Date('2026-02-26T10:00:00'); // adjust as needed
-// NOTE: COLLEGE_DOMAIN is kept for optional checks, but DB-based login does not enforce it
 const COLLEGE_DOMAIN = '@cit.edu.in';
 
 // ---------------- STATE ----------------
@@ -16,7 +15,7 @@ let dbData = {
   tasks: {},
   events: {},
   sponsors: {},
-  logistics: {}
+  announcements: {} // Added
 };
 
 // ----------------- UTIL HELPERS -----------------
@@ -29,7 +28,6 @@ function getObjectValues(obj = {}) {
 }
 
 function getUserById(uid) {
-  // Add uid to the user object before returning
   const user = dbData.users[uid];
   if (user) {
     user.uid = uid; // Ensure the uid is part of the object
@@ -37,26 +35,27 @@ function getUserById(uid) {
   return user || { uid: uid, name: 'Unknown', email: '', role: 'volunteer', teamId: null };
 }
 
-function getUserByEmail(email) {
-  const users = getObjectValues(dbData.users);
-  return users.find(u => u.email && u.email.toLowerCase() === (email || '').toLowerCase());
-}
-
 function getTeamById(id) {
   return dbData.teams[id] || { id, name: 'Unknown', icon: '❓' };
 }
 
-function formatDate(dateStr) {
+function formatDate(dateStr, includeTime = false) {
   if (!dateStr) return 'N/A';
-  // Check if dateStr is already in YYYY-MM-DD format, which input[type=date] produces
+  // Check for YYYY-MM-DD format
   if (typeof dateStr === 'string' && dateStr.match(/^\d{4}-\d{2}-\d{2}$/)) {
     const [year, month, day] = dateStr.split('-');
     return `${day}/${month}/${year}`;
   }
   const d = new Date(dateStr);
   if (isNaN(d)) return dateStr;
-  // Fallback for other date formats (e.g., ISOString)
-  return d.toLocaleDateString('en-IN', { day: '2-digit', month: '2-digit', year: 'numeric' });
+  
+  const options = { day: '2-digit', month: '2-digit', year: 'numeric' };
+  if (includeTime) {
+    options.hour = '2-digit';
+    options.minute = '2-digit';
+    options.hour12 = true;
+  }
+  return d.toLocaleDateString('en-IN', options);
 }
 
 function isUrgent(dueDate) {
@@ -80,7 +79,6 @@ function calculateTeamProgress(teamId) {
 
 // ---------------- FIREBASE AUTH (MAIN) ----------------
 
-// Show login UI (default)
 function showLoginPage() {
   currentUser = null;
   db.ref().off(); // detach listeners
@@ -88,7 +86,6 @@ function showLoginPage() {
   document.getElementById('loginPage').style.display = 'flex';
 }
 
-// Show dashboard after successful login
 function showDashboardAfterLogin() {
   initializeRealTimeListeners();
   document.getElementById('loginPage').style.display = 'none';
@@ -98,21 +95,16 @@ function showDashboardAfterLogin() {
   navigateToPage('dashboard');
 }
 
-// Handle login form submission (Firebase Auth)
 async function handleLogin(event) {
   if (event && event.preventDefault) event.preventDefault();
-
   const emailEl = document.getElementById('emailInput');
   const passwordEl = document.getElementById('passwordInput');
   const loginButton = document.getElementById('loginButton');
   const loginErrorMsg = document.getElementById('loginErrorMessage');
-
   const email = emailEl ? emailEl.value.trim() : '';
   const password = passwordEl ? passwordEl.value : '';
-
   loginErrorMsg.textContent = '';
   loginErrorMsg.classList.remove('show');
-
   if (!email) {
     loginErrorMsg.textContent = 'Please enter your email.';
     loginErrorMsg.classList.add('show');
@@ -123,27 +115,16 @@ async function handleLogin(event) {
     loginErrorMsg.classList.add('show');
     return;
   }
-
   loginButton.textContent = 'Signing In...';
   loginButton.disabled = true;
-
   try {
-    // === THIS IS THE MAIN CHANGE ===
-    // Use Firebase Auth service to sign in
     const userCredential = await auth.signInWithEmailAndPassword(email, password);
-    
-    // Auth was successful, but we still need to fetch the profile from the DB
     const dbUid = userCredential.user.uid;
     const profileSnapshot = await db.ref('/users/' + dbUid).once('value');
-
     if (!profileSnapshot.exists()) {
-        // This should not happen if your DB is synced with Auth users
         throw new Error("Auth successful, but no user profile in database.");
     }
-
     const profile = profileSnapshot.val();
-
-    // Build currentUser from DB profile
     currentUser = {
       uid: dbUid,
       email: profile.email,
@@ -151,10 +132,8 @@ async function handleLogin(event) {
       role: profile.role || 'volunteer',
       teamId: profile.teamId || null
     };
-
     console.log(`Firebase Auth login success: ${currentUser.name} (${currentUser.role})`);
     showDashboardAfterLogin();
-    
   } catch (err) {
     console.error('Firebase Auth login error:', err);
     if (err.code === 'auth/user-not-found' || err.code === 'auth/wrong-password' || err.code === 'auth/invalid-credential') {
@@ -169,7 +148,6 @@ async function handleLogin(event) {
   }
 }
 
-// Logout for Firebase Auth
 function handleLogout() {
   auth.signOut().then(() => {
     currentUser = null;
@@ -184,35 +162,26 @@ function handleLogout() {
   });
 }
 
-// Hook the login form and listen for auth state
 document.addEventListener('DOMContentLoaded', () => {
   const loginFormEl = document.getElementById('loginForm');
   if (loginFormEl) {
     loginFormEl.addEventListener('submit', handleLogin);
   }
-
   const logoutBtn = document.getElementById('logoutBtn');
   if (logoutBtn) {
     logoutBtn.addEventListener('click', handleLogout);
   }
 
-  // === NEW: Listen for Auth State Changes ===
   auth.onAuthStateChanged(async (user) => {
     if (user) {
-      // User is signed in. Fetch their profile from the DB.
       const dbUid = user.uid;
-      
       const profileSnapshot = await db.ref('/users/' + dbUid).once('value');
-
       if (!profileSnapshot.exists()) {
         console.error("User is logged in, but no profile found in DB. Logging out.");
         auth.signOut();
         return;
       }
-      
       const profile = profileSnapshot.val();
-      
-      // Build currentUser
       currentUser = {
         uid: dbUid,
         email: profile.email,
@@ -220,18 +189,14 @@ document.addEventListener('DOMContentLoaded', () => {
         role: profile.role || 'volunteer',
         teamId: profile.teamId || null
       };
-
       console.log(`Auth state change: ${currentUser.name} is logged in.`);
       showDashboardAfterLogin();
-
     } else {
-      // User is signed out. Show the login page.
       console.log('Auth state change: User is logged out.');
       showLoginPage();
     }
   });
 
-  // Wire nav clicks (single delegate)
   document.querySelectorAll('.nav-item').forEach(item => {
     item.addEventListener('click', (ev) => {
       ev.preventDefault();
@@ -240,47 +205,46 @@ document.addEventListener('DOMContentLoaded', () => {
     });
   });
 
-  // === NEW: Wire up ALL modal forms ===
+  // Wire up ALL modal forms
   const taskForm = document.getElementById('taskForm');
   if (taskForm) {
       taskForm.addEventListener('submit', handleTaskFormSubmit);
   }
-
   const eventForm = document.getElementById('eventForm');
   if (eventForm) {
       eventForm.addEventListener('submit', handleEventFormSubmit);
   }
-
   const sponsorForm = document.getElementById('sponsorForm');
   if (sponsorForm) {
       sponsorForm.addEventListener('submit', handleSponsorFormSubmit);
+  }
+  const teamForm = document.getElementById('teamForm'); // Added
+  if (teamForm) {
+      teamForm.addEventListener('submit', handleTeamFormSubmit);
+  }
+  const announcementForm = document.getElementById('announcementForm'); // Added
+  if (announcementForm) {
+      announcementForm.addEventListener('submit', handleAnnouncementFormSubmit);
   }
 });
 
 // ----------------- REAL-TIME DATA SYNC -----------------
 function initializeRealTimeListeners() {
-  const nodes = ['users', 'teams', 'tasks', 'events', 'sponsors', 'logistics'];
+  const nodes = ['users', 'teams', 'tasks', 'events', 'sponsors', 'announcements']; // Added 'announcements', removed 'logistics'
 
   nodes.forEach(node => {
     db.ref(node).on('value', (snapshot) => {
       const data = snapshot.val() || {};
       
-      // Add unique IDs to data (e.g., tasks, teams)
-      if (node === 'tasks' || node === 'teams' || node === 'events' || node === 'sponsors' || node === 'logistics') {
-        dbData[node] = Object.keys(data).reduce((acc, key) => {
-          acc[key] = { ...data[key], id: key };
-          return acc;
-        }, {});
-      } else if (node === 'users') {
-        dbData[node] = Object.keys(data).reduce((acc, key) => {
-          acc[key] = { ...data[key], uid: key }; // Use uid for users
-          return acc;
-        }, {});
-      } else {
-        dbData[node] = data;
-      }
+      // Add unique IDs to data
+      const dataWithIds = Object.keys(data).reduce((acc, key) => {
+        const idKey = (node === 'users') ? 'uid' : 'id';
+        acc[key] = { ...data[key], [idKey]: key };
+        return acc;
+      }, {});
       
-      // Update UI if user is logged in
+      dbData[node] = dataWithIds;
+      
       if (currentUser) refreshCurrentPage();
     });
   });
@@ -299,34 +263,22 @@ const Permissions = {
     if (task && currentUser.role === 'team_lead' && task.teamId === currentUser.teamId) return true;
     return false;
   },
-
   canUpdateTaskStatus: (task) => {
     if (!currentUser) return false;
     if (Permissions.canManageTask(task)) return true;
     if (currentUser.role === 'volunteer' && task.assigneeId === currentUser.uid) return true;
     return false;
   },
-
   canManageTeams: () => currentUser && currentUser.role === 'admin',
-
   canManageSponsors: () => {
     if (!currentUser) return false;
     if (currentUser.role === 'admin') return true;
-    const team = dbData.teams[currentUser.teamId] || {};
-    // Let's assume 'team5' is the Sponsorship team from your JSON
+    // Assuming 'team5' is Sponsorship team
     if (currentUser.role === 'team_lead' && currentUser.teamId === 'team5') return true;
     return false;
   },
-
-  canManageLogistics: () => {
-    if (!currentUser) return false;
-    if (currentUser.role === 'admin') return true;
-    if (currentUser.role === 'team_lead') return true;
-    return false;
-  },
-
   canManageEvents: () => currentUser && currentUser.role === 'admin',
-
+  canManageAnnouncements: () => currentUser && currentUser.role === 'admin', // Added
   canViewPage: (page) => {
     if (!currentUser) return false;
     if (page === 'analytics' && currentUser.role === 'volunteer') return false;
@@ -337,7 +289,6 @@ const Permissions = {
 // ----------------- DATA FILTERS -----------------
 function getVisibleTasks() {
   const allTasks = getObjectValues(dbData.tasks);
-
   if (!currentUser) return [];
   if (currentUser.role === 'admin') return allTasks;
   if (currentUser.role === 'team_lead') return allTasks.filter(task => task.teamId === currentUser.teamId);
@@ -351,12 +302,10 @@ function navigateToPage(page, isRefresh = false) {
     showLoginPage();
     return;
   }
-
   if (!isRefresh && !Permissions.canViewPage(page)) {
     alert("You do not have permission to view this page.");
     return;
   }
-
   if (!isRefresh) currentPage = page;
 
   document.querySelectorAll('.nav-item').forEach(item => {
@@ -377,9 +326,8 @@ function navigateToPage(page, isRefresh = false) {
       case 'events': renderEvents(pageContent); break;
       case 'tasks': renderTasks(pageContent); break;
       case 'sponsors': renderSponsors(pageContent); break;
-      case 'logistics': renderLogistics(pageContent); break;
-      case 'communication': renderCommunication(pageContent); break;
-      case 'analytics': renderAnalytics(pageContent); break;
+      case 'announcements': renderAnnouncements(pageContent); break; // Updated
+      case 'analytics': renderAnalytics(pageContent); break; // Updated
       default:
         pageContent.innerHTML = `<h2>Page not found: ${page}</h2>`;
     }
@@ -395,7 +343,6 @@ function renderDashboard(container) {
   const completedTasks = tasks.filter(t => t.status === 'Done').length;
   const activeEvents = Object.keys(dbData.events).length;
   const totalMembers = Object.keys(dbData.users).length;
-
   const urgentTasks = tasks
     .filter(t => t.status !== 'Done' && isUrgent(t.dueDate))
     .sort((a, b) => new Date(a.dueDate) - new Date(b.dueDate))
@@ -414,7 +361,6 @@ function renderDashboard(container) {
         </div>
       </div>
     </div>
-
     <div class="stats-grid">
       <div class="stat-card">
         <div class="stat-icon bg-1">✓</div>
@@ -448,7 +394,6 @@ function renderDashboard(container) {
       </div>
       ` : ''}
     </div>
-
     <div class="grid-2">
       <div class="tasks-section">
         <div class="section-header">
@@ -471,7 +416,6 @@ function renderDashboard(container) {
           `).join('')}
         </div>
       </div>
-
       ${currentUser.role !== 'volunteer' ? `
       <div class="progress-section">
         <div class="section-header"><h3 class="section-title">Team Progress</h3></div>
@@ -561,7 +505,7 @@ function renderTeams(container) {
   container.innerHTML = `
     <div style="display:flex;justify-content:space-between;align-items:center;margin-bottom:var(--space-24);">
       <h2>Teams</h2>
-      ${Permissions.canManageTeams() ? `<button class="btn btn--primary" onclick="openTeamModal()">+ Manage Teams</button>` : ''}
+      ${Permissions.canManageTeams() ? `<button class="btn btn--primary" onclick="openTeamModal()">+ Add Team</button>` : ''}
     </div>
     <div class="grid-3">
       ${getObjectValues(dbData.teams).map(team => {
@@ -580,10 +524,13 @@ function renderTeams(container) {
               <div class="progress-bar-container" style="margin:16px 0;">
                 <div class="progress-bar color-1" style="width: ${teamProgress}%"></div>
               </div>
-              <div style="display:flex;justify-content:space-between;">
+              <div style="display:flex;justify-content:space-between; margin-bottom: 16px;">
                 <span class="status status--todo">${todoCount} To Do</span>
                 <span class="status status--done">${doneCount} Done</span>
               </div>
+              ${Permissions.canManageTeams() ? `
+                <button class="btn btn--sm btn--secondary btn--full-width" onclick="openTeamModal('${team.id}')">Edit Team</button>
+              ` : ''}
             </div>
           </div>
         `;
@@ -600,14 +547,8 @@ function renderEvents(container) {
       <h2>Events</h2>
       ${Permissions.canManageEvents() ? `<button class="btn btn--primary" onclick="openEventModal()">+ Add Event</button>` : ''}
     </div>
-
     ${events.length === 0 ? `
-      <div class="card">
-        <div class="card__body text-center">
-          <p>No events have been added yet.</p>
-          ${Permissions.canManageEvents() ? '<p>Click the button above to add the first event.</p>' : '<p>Events will be added by an admin soon.</p>'}
-        </div>
-      </div>
+      <div class="card"><div class="card__body text-center"><p>No events have been added yet.</p></div></div>
     ` : `
       <div class="data-table">
         <table>
@@ -661,7 +602,7 @@ function renderSponsors(container) {
             <div class="card__body">
               <h3>${s.name}</h3>
               <p class="status status--info">${s.tier || 'General'}</p>
-              <div style="margin-top:12px;">
+              <div style="margin-top:12px; display: flex; gap: 8px;">
                 ${Permissions.canManageSponsors() ? `
                   <button class="btn btn--sm btn--secondary" onclick="openSponsorModal('${s.id}')">Edit</button>
                   <button class="btn btn--sm" onclick="handleDelete('sponsors','${s.id}','sponsor')">Delete</button>
@@ -675,19 +616,106 @@ function renderSponsors(container) {
   `;
 }
 
-// ---------- RENDER: Logistics / Communication / Analytics (simple placeholders) ----------
-function renderLogistics(container) {
-  const logistics = getObjectValues(dbData.logistics);
-  container.innerHTML = `<h2>Logistics</h2>
-    ${logistics.length === 0 ? '<p>No logistics items</p>' : '<p>Logistics items loaded</p>'}`;
+// ---------- RENDER: Announcements (NEW) ----------
+function renderAnnouncements(container) {
+  const announcements = getObjectValues(dbData.announcements).sort((a, b) => new Date(b.timestamp) - new Date(a.timestamp)); // Newest first
+  
+  container.innerHTML = `
+    <div style="display:flex;justify-content:space-between;align-items:center;margin-bottom:var(--space-24);">
+      <h2>Announcements</h2>
+      ${Permissions.canManageAnnouncements() ? `<button class="btn btn--primary" onclick="openAnnouncementModal()">+ Add Announcement</button>` : ''}
+    </div>
+    <div class="announcement-list" style="display: flex; flex-direction: column; gap: 16px;">
+      ${announcements.length === 0 ? `
+        <div class="card"><div class="card__body text-center"><p>No announcements yet.</p></div></div>
+      ` : announcements.map(post => `
+        <div class="card">
+          <div class="card__body">
+            <h3 style="margin-bottom: 8px;">${post.title}</h3>
+            <p style="color: var(--color-text-secondary); font-size: var(--font-size-sm); margin-bottom: 16px;">
+              Posted by ${getUserById(post.authorId).name} on ${formatDate(post.timestamp, true)}
+            </p>
+            <p style="white-space: pre-wrap; margin-bottom: 0;">${post.content}</p>
+            ${Permissions.canManageAnnouncements() ? `
+              <div style="margin-top: 16px; border-top: 1px solid var(--color-border); padding-top: 16px;">
+                <button class="btn btn--sm" onclick="handleDelete('announcements','${post.id}','announcement')">Delete</button>
+              </div>
+            ` : ''}
+          </div>
+        </div>
+      `).join('')}
+    </div>
+  `;
 }
 
-function renderCommunication(container) {
-  container.innerHTML = `<h2>Communication</h2><p>Communication panel coming soon. This is where you would build your chat or announcement UI.</p>`;
-}
-
+// ---------- RENDER: Analytics (NEW) ----------
 function renderAnalytics(container) {
-  container.innerHTML = `<h2>Analytics</h2><p>Analytics available to leads and admins. This is where you would add charts and graphs.</p>`;
+  const allTasks = getObjectValues(dbData.tasks);
+  const doneTasks = allTasks.filter(t => t.status === 'Done').length;
+  const progress = calculateProgress(allTasks);
+  const totalEvents = Object.keys(dbData.events).length;
+  const totalSponsors = Object.keys(dbData.sponsors).length;
+  const totalMembers = Object.keys(dbData.users).length;
+  const teams = getObjectValues(dbData.teams);
+
+  container.innerHTML = `
+    <div style="margin-bottom:var(--space-24);">
+      <h2>Analytics Overview</h2>
+    </div>
+    <div class="stats-grid" style="margin-bottom: var(--space-32);">
+      <div class="stat-card">
+        <div class="stat-icon bg-1">✓</div>
+        <div class="stat-info">
+          <div class="stat-label">Total Tasks</div>
+          <div class="stat-value">${allTasks.length}</div>
+        </div>
+      </div>
+      <div class="stat-card">
+        <div class="stat-icon bg-2">📊</div>
+        <div class="stat-info">
+          <div class="stat-label">Overall Progress</div>
+          <div class="stat-value">${progress}%</div>
+          <div class="stat-change">${doneTasks} / ${allTasks.length} done</div>
+        </div>
+      </div>
+      <div class="stat-card">
+        <div class="stat-icon bg-3">📅</div>
+        <div class="stat-info">
+          <div class="stat-label">Total Events</div>
+          <div class="stat-value">${totalEvents}</div>
+        </div>
+      </div>
+      <div class="stat-card">
+        <div class="stat-icon bg-5">💰</div>
+        <div class="stat-info">
+          <div class="stat-label">Total Sponsors</div>
+          <div class="stat-value">${totalSponsors}</div>
+        </div>
+      </div>
+    </div>
+
+    <div class="progress-section">
+      <div class="section-header"><h3 class="section-title">Tasks per Team</h3></div>
+      <div class="team-progress-list">
+        ${teams.map((team, index) => {
+          const teamTasks = allTasks.filter(t => t.teamId === team.id);
+          const teamProgress = calculateTeamProgress(team.id);
+          return `
+            <div class="team-progress-item">
+              <div class="team-info" style="min-width: 200px;">
+                <span class="team-icon">${team.icon || '❓'}</span>
+                <span class="team-name">${team.name}</span>
+              </div>
+              <div class="progress-bar-container">
+                <div class="progress-bar color-${(index % 5) + 1}" style="width: ${teamProgress}%"></div>
+              </div>
+              <div class="progress-percentage-text" style="min-width: 80px;">${teamTasks.length} Tasks</div>
+            </div>
+          `;
+        }).join('')}
+      </div>
+    </div>
+  `;
 }
 
 // ---------- MISC UI Helpers ----------
@@ -697,7 +725,6 @@ function updateUserProfileUI() {
   const sidebarUserRole = document.getElementById('sidebarUserRole');
   const sidebarAvatar = document.getElementById('sidebarAvatar');
   const headerAvatar = document.getElementById('headerAvatar');
-
   if (sidebarUserName) sidebarUserName.textContent = currentUser.name;
   if (sidebarUserRole) sidebarUserRole.textContent = currentUser.role.replace('_', ' ');
   if (sidebarAvatar) sidebarAvatar.textContent = currentUser.name ? currentUser.name[0].toUpperCase() : 'U';
@@ -709,28 +736,19 @@ function startCountdown() {
   const hoursEl = document.getElementById('countdownHours');
   const minsEl = document.getElementById('countdownMinutes');
   const secsEl = document.getElementById('countdownSeconds');
-
   function update() {
     const now = new Date();
     const diff = SYMPOSIUM_DATE - now;
     if (diff <= 0) {
-      daysEl.textContent = '0';
-      hoursEl.textContent = '0';
-      minsEl.textContent = '0';
-      secsEl.textContent = '0';
+      daysEl.textContent = '0'; hoursEl.textContent = '0'; minsEl.textContent = '0'; secsEl.textContent = '0';
       return;
     }
     const days = Math.floor(diff / (1000 * 60 * 60 * 24));
     const hours = Math.floor((diff / (1000 * 60 * 60)) % 24);
     const minutes = Math.floor((diff / (1000 * 60)) % 60);
     const seconds = Math.floor((diff / 1000) % 60);
-
-    daysEl.textContent = days;
-    hoursEl.textContent = hours;
-    minsEl.textContent = minutes;
-    secsEl.textContent = seconds;
+    daysEl.textContent = days; hoursEl.textContent = hours; minsEl.textContent = minutes; secsEl.textContent = seconds;
   }
-
   update();
   setInterval(update, 1000);
 }
@@ -738,14 +756,10 @@ function startCountdown() {
 // ---------- CRUD helpers (simple) ----------
 function handleDelete(node, id, label) {
   if (!confirm(`Are you sure you want to delete this ${label}?`)) return;
-  
   // Check permissions
-  if (node === 'events' && !Permissions.canManageEvents()) {
-    alert('Insufficient permissions'); return;
-  }
-  if (node === 'sponsors' && !Permissions.canManageSponsors()) {
-    alert('Insufficient permissions'); return;
-  }
+  if (node === 'events' && !Permissions.canManageEvents()) { alert('Insufficient permissions'); return; }
+  if (node === 'sponsors' && !Permissions.canManageSponsors()) { alert('Insufficient permissions'); return; }
+  if (node === 'announcements' && !Permissions.canManageAnnouncements()) { alert('Insufficient permissions'); return; }
 
   db.ref(`${node}/${id}`).remove().then(() => {
     console.log(`${label} ${id} removed`);
@@ -754,26 +768,16 @@ function handleDelete(node, id, label) {
 
 // ----------------- MODAL & FORM HANDLING (NEW) -----------------
 
-/**
- * Closes any open modal
- */
 function closeModal() {
   document.querySelectorAll('.modal-overlay').forEach(modal => {
     modal.style.display = 'none';
   });
 }
 
-/**
- * Populates a <select> dropdown with options
- * @param {string} elId - The ID of the <select> element
- * @param {Array<Object>} items - Array of objects, e.g., [{ id: 't1', name: 'Team 1' }]
- * @param {string} [selectedValue] - (Optional) The ID of the item to pre-select
- */
 function populateSelect(elId, items, selectedValue = null) {
   const selectEl = document.getElementById(elId);
   if (!selectEl) return;
   selectEl.innerHTML = ''; // Clear old options
-  
   items.forEach(item => {
     const option = document.createElement('option');
     option.value = item.id;
@@ -786,12 +790,10 @@ function populateSelect(elId, items, selectedValue = null) {
 }
 
 // --- TASK MODAL ---
-
 function openTaskModal(taskId = null) {
   const modalOverlay = document.getElementById('taskModalOverlay');
   const modalTitle = document.getElementById('taskModalTitle');
   const form = document.getElementById('taskForm');
-  
   form.reset();
   document.getElementById('taskIdInput').value = '';
 
@@ -800,7 +802,7 @@ function openTaskModal(taskId = null) {
   
   function updateAssignees(teamId, selectedAssigneeId = null) {
     const teamMembers = allUsers
-      .filter(u => u.teamId === teamId || (u.role === 'admin' && !u.teamId)) // Team members + admins
+      .filter(u => u.teamId === teamId || (u.role === 'admin' && !u.teamId))
       .map(u => ({ id: u.uid, name: u.name }));
     populateSelect('taskAssigneeInput', teamMembers, selectedAssigneeId);
   }
@@ -817,29 +819,24 @@ function openTaskModal(taskId = null) {
     document.getElementById('taskStatusInput').value = task.status || 'To Do';
     document.getElementById('taskPriorityInput').value = task.priority || 'Medium';
     document.getElementById('taskDueDateInput').value = task.dueDate || '';
-    
     populateSelect('taskTeamInput', allTeams, task.teamId);
-    updateAssignees(task.teamId, task.assigneeId); // Load members for this team and select assignee
-    
+    updateAssignees(task.teamId, task.assigneeId);
   } else {
     // CREATE MODE
     modalTitle.textContent = 'Create New Task';
     const tomorrow = new Date();
     tomorrow.setDate(tomorrow.getDate() + 1);
     document.getElementById('taskDueDateInput').value = tomorrow.toISOString().split('T')[0];
-    
     let defaultTeamId = currentUser.teamId || allTeams[0]?.id;
     populateSelect('taskTeamInput', allTeams, defaultTeamId);
     updateAssignees(defaultTeamId);
   }
-
   modalOverlay.style.display = 'flex';
 }
 
 async function handleTaskFormSubmit(event) {
   event.preventDefault();
   const taskId = document.getElementById('taskIdInput').value;
-  
   const taskData = {
     title: document.getElementById('taskTitleInput').value,
     description: document.getElementById('taskDescInput').value,
@@ -849,13 +846,10 @@ async function handleTaskFormSubmit(event) {
     priority: document.getElementById('taskPriorityInput').value,
     dueDate: document.getElementById('taskDueDateInput').value,
   };
-
   try {
     if (taskId) {
-      console.log(`Updating task ${taskId}`);
       await db.ref(`tasks/${taskId}`).update(taskData);
     } else {
-      console.log('Creating new task');
       taskData.createdAt = new Date().toISOString();
       taskData.creatorId = currentUser.uid;
       await db.ref('tasks').push(taskData);
@@ -868,17 +862,14 @@ async function handleTaskFormSubmit(event) {
 }
 
 function openTaskDetailModal(id) { 
-  console.log(`Opening detail for task ${id}.`);
-  openTaskModal(id); // Re-use the edit modal
+  openTaskModal(id);
 }
 
 // --- EVENT MODAL ---
-
 function openEventModal(eventId = null) {
   const modalOverlay = document.getElementById('eventModalOverlay');
   const modalTitle = document.getElementById('eventModalTitle');
   const form = document.getElementById('eventForm');
-
   form.reset();
   document.getElementById('eventIdInput').value = '';
 
@@ -895,27 +886,22 @@ function openEventModal(eventId = null) {
     // CREATE MODE
     modalTitle.textContent = 'Add New Event';
   }
-
   modalOverlay.style.display = 'flex';
 }
 
 async function handleEventFormSubmit(event) {
   event.preventDefault();
   const eventId = document.getElementById('eventIdInput').value;
-  
   const eventData = {
     name: document.getElementById('eventNameInput').value,
     type: document.getElementById('eventTypeInput').value,
     date: document.getElementById('eventDateInput').value,
     venue: document.getElementById('eventVenueInput').value,
   };
-
   try {
     if (eventId) {
-      console.log(`Updating event ${eventId}`);
       await db.ref(`events/${eventId}`).update(eventData);
     } else {
-      console.log('Creating new event');
       await db.ref('events').push(eventData);
     }
     closeModal();
@@ -926,12 +912,10 @@ async function handleEventFormSubmit(event) {
 }
 
 // --- SPONSOR MODAL ---
-
 function openSponsorModal(sponsorId = null) {
   const modalOverlay = document.getElementById('sponsorModalOverlay');
   const modalTitle = document.getElementById('sponsorModalTitle');
   const form = document.getElementById('sponsorForm');
-
   form.reset();
   document.getElementById('sponsorIdInput').value = '';
 
@@ -946,25 +930,20 @@ function openSponsorModal(sponsorId = null) {
     // CREATE MODE
     modalTitle.textContent = 'Add New Sponsor';
   }
-
   modalOverlay.style.display = 'flex';
 }
 
 async function handleSponsorFormSubmit(event) {
   event.preventDefault();
   const sponsorId = document.getElementById('sponsorIdInput').value;
-  
   const sponsorData = {
     name: document.getElementById('sponsorNameInput').value,
     tier: document.getElementById('sponsorTierInput').value,
   };
-
   try {
     if (sponsorId) {
-      console.log(`Updating sponsor ${sponsorId}`);
       await db.ref(`sponsors/${sponsorId}`).update(sponsorData);
     } else {
-      console.log('Creating new sponsor');
       await db.ref('sponsors').push(sponsorData);
     }
     closeModal();
@@ -974,9 +953,73 @@ async function handleSponsorFormSubmit(event) {
   }
 }
 
-// --- TEAM MODAL (Placeholder) ---
-function openTeamModal() { 
-  alert('Open team modal (implement UI)'); 
+// --- TEAM MODAL (NEW) ---
+function openTeamModal(teamId = null) {
+  const modalOverlay = document.getElementById('teamModalOverlay');
+  const modalTitle = document.getElementById('teamModalTitle');
+  const form = document.getElementById('teamForm');
+  form.reset();
+  document.getElementById('teamIdInput').value = '';
+
+  if (teamId && dbData.teams[teamId]) {
+    // EDIT MODE
+    const team = dbData.teams[teamId];
+    modalTitle.textContent = 'Edit Team';
+    document.getElementById('teamIdInput').value = teamId;
+    document.getElementById('teamNameInput').value = team.name || '';
+    document.getElementById('teamIconInput').value = team.icon || '';
+  } else {
+    // CREATE MODE
+     modalTitle.textContent = 'Add New Team';
+     // Note: Creating a team here won't assign a lead. This must be done in the DB.
+  }
+  modalOverlay.style.display = 'flex';
+}
+
+async function handleTeamFormSubmit(event) {
+  event.preventDefault();
+  const teamId = document.getElementById('teamIdInput').value;
+  const teamData = {
+    name: document.getElementById('teamNameInput').value,
+    icon: document.getElementById('teamIconInput').value,
+  };
+  try {
+    if (teamId) {
+      // We are only updating name and icon
+      await db.ref(`teams/${teamId}`).update(teamData);
+    } else {
+      // Create new team
+      await db.ref('teams').push(teamData);
+    }
+    closeModal();
+  } catch (err) {
+    console.error("Error saving team:", err);
+    alert("Error saving team.");
+  }
+}
+
+// --- ANNOUNCEMENT MODAL (NEW) ---
+function openAnnouncementModal() {
+  const modalOverlay = document.getElementById('announcementModalOverlay');
+  document.getElementById('announcementForm').reset();
+  modalOverlay.style.display = 'flex';
+}
+
+async function handleAnnouncementFormSubmit(event) {
+  event.preventDefault();
+  const postData = {
+    title: document.getElementById('announcementTitleInput').value,
+    content: document.getElementById('announcementContentInput').value,
+    authorId: currentUser.uid,
+    timestamp: new Date().toISOString()
+  };
+  try {
+    await db.ref('announcements').push(postData);
+    closeModal();
+  } catch (err) {
+    console.error("Error posting announcement:", err);
+    alert("Error posting announcement.");
+  }
 }
 
 // ----------------- END OF FILE -----------------
