@@ -161,28 +161,24 @@
         </div>
 
         <div id="modalContainer">
+            
             <div class="modal-overlay" id="taskModalOverlay" style="display: none;">
                 <div class="modal">
-                    
                     <div class="modal-header">
                         <h3 class="modal-title" id="taskModalTitle">Create New Task</h3>
                         <button class="modal-close" onclick="closeModal()">&times;</button>
                     </div>
-                    
                     <form id="taskForm">
                         <div class="modal-body">
                             <input type="hidden" id="taskIdInput">
-
                             <div class="form-group">
                                 <label class="form-label">Task Title</label>
                                 <input type="text" id="taskTitleInput" class="form-control" required>
                             </div>
-
                             <div class="form-group">
                                 <label class="form-label">Description</label>
                                 <textarea id="taskDescInput" class="form-control" rows="3"></textarea>
                             </div>
-
                             <div class="grid-2" style="gap: var(--space-16);">
                                 <div class="form-group">
                                     <label class="form-label">Assign to Team</label>
@@ -193,7 +189,6 @@
                                     <select id="taskAssigneeInput" class="form-control" required></select>
                                 </div>
                             </div>
-
                             <div class="grid-3" style="gap: var(--space-16);">
                                 <div class="form-group">
                                     <label class="form-label">Status</label>
@@ -217,15 +212,86 @@
                                 </div>
                             </div>
                         </div>
-                        
                         <div class="modal-footer">
                             <button type="button" class="btn btn--secondary" onclick="closeModal()">Cancel</button>
                             <button type="submit" class="btn btn--primary">Save Task</button>
                         </div>
                     </form>
-
                 </div>
             </div>
+
+            <div class="modal-overlay" id="eventModalOverlay" style="display: none;">
+                <div class="modal">
+                    <div class="modal-header">
+                        <h3 class="modal-title" id="eventModalTitle">Add New Event</h3>
+                        <button class="modal-close" onclick="closeModal()">&times;</button>
+                    </div>
+                    <form id="eventForm">
+                        <div class="modal-body">
+                            <input type="hidden" id="eventIdInput">
+                            <div class="form-group">
+                                <label class="form-label">Event Name</label>
+                                <input type="text" id="eventNameInput" class="form-control" required>
+                            </div>
+                            <div class="grid-3" style="gap: var(--space-16);">
+                                <div class="form-group">
+                                    <label class="form-label">Event Type</label>
+                                    <select id="eventTypeInput" class="form-control" required>
+                                        <option value="Technical">Technical</option>
+                                        <option value="Non-Technical">Non-Technical</option>
+                                        <option value="Workshop">Workshop</option>
+                                    </select>
+                                </div>
+                                <div class="form-group">
+                                    <label class="form-label">Date</label>
+                                    <input type="date" id="eventDateInput" class="form-control" required>
+                                </div>
+                                <div class="form-group">
+                                    <label class="form-label">Venue</label>
+                                    <input type="text" id="eventVenueInput" class="form-control" placeholder="e.g., Main Auditorium">
+                                </div>
+                            </div>
+                        </div>
+                        <div class="modal-footer">
+                            <button type="button" class="btn btn--secondary" onclick="closeModal()">Cancel</button>
+                            <button type="submit" class="btn btn--primary">Save Event</button>
+                        </div>
+                    </form>
+                </div>
+            </div>
+
+            <div class="modal-overlay" id="sponsorModalOverlay" style="display: none;">
+                <div class="modal">
+                    <div class="modal-header">
+                        <h3 class="modal-title" id="sponsorModalTitle">Add New Sponsor</h3>
+                        <button class="modal-close" onclick="closeModal()">&times;</button>
+                    </div>
+                    <form id="sponsorForm">
+                        <div class="modal-body">
+                            <input type="hidden" id="sponsorIdInput">
+                            <div class="form-group">
+                                <label class="form-label">Sponsor Name</label>
+                                <input type="text" id="sponsorNameInput" class="form-control" required>
+                            </div>
+                             <div class="form-group">
+                                <label class="form-label">Sponsorship Tier</label>
+                                <select id="sponsorTierInput" class="form-control" required>
+                                    <option value="Title Sponsor">Title Sponsor</option>
+                                    <option value="Gold Sponsor">Gold Sponsor</option>
+                                    <option value="Silver Sponsor">Silver Sponsor</option>
+                                    <option value="Bronze Sponsor">Bronze Sponsor</option>
+                                    <option value="General">General</option>
+                                </select>
+                            </div>
+                        </div>
+                        <div class="modal-footer">
+                            <button type="button" class="btn btn--secondary" onclick="closeModal()">Cancel</button>
+                            <button type="submit" class="btn btn--primary">Save Sponsor</button>
+                        </div>
+                    </form>
+                </div>
+            </div>
+
         </div>
     </div>
 

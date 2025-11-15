@@ -202,7 +202,6 @@ document.addEventListener('DOMContentLoaded', () => {
       // User is signed in. Fetch their profile from the DB.
       const dbUid = user.uid;
       
-      // <<< THIS LINE IS NOW FIXED (removed 'D) >>>
       const profileSnapshot = await db.ref('/users/' + dbUid).once('value');
 
       if (!profileSnapshot.exists()) {
@@ -241,10 +240,20 @@ document.addEventListener('DOMContentLoaded', () => {
     });
   });
 
-  // <<< NEW: ADDED TASK FORM SUBMIT LISTENER >>>
+  // === NEW: Wire up ALL modal forms ===
   const taskForm = document.getElementById('taskForm');
   if (taskForm) {
       taskForm.addEventListener('submit', handleTaskFormSubmit);
+  }
+
+  const eventForm = document.getElementById('eventForm');
+  if (eventForm) {
+      eventForm.addEventListener('submit', handleEventFormSubmit);
+  }
+
+  const sponsorForm = document.getElementById('sponsorForm');
+  if (sponsorForm) {
+      sponsorForm.addEventListener('submit', handleSponsorFormSubmit);
   }
 });
 
@@ -304,7 +313,8 @@ const Permissions = {
     if (!currentUser) return false;
     if (currentUser.role === 'admin') return true;
     const team = dbData.teams[currentUser.teamId] || {};
-    if (currentUser.role === 'team_lead' && team.name === 'Sponsorship Team') return true;
+    // Let's assume 'team5' is the Sponsorship team from your JSON
+    if (currentUser.role === 'team_lead' && currentUser.teamId === 'team5') return true;
     return false;
   },
 
@@ -555,7 +565,7 @@ function renderTeams(container) {
     </div>
     <div class="grid-3">
       ${getObjectValues(dbData.teams).map(team => {
-        const lead = getUserById(team.leadId);
+        const lead = getObjectValues(dbData.users).find(u => u.teamId === team.id && u.role === 'team_lead') || { name: 'N/A' };
         const teamProgress = calculateTeamProgress(team.id);
         const teamTasks = getObjectValues(dbData.tasks).filter(t => t.teamId === team.id);
         const todoCount = teamTasks.filter(t => t.status === 'To Do').length;
@@ -650,9 +660,12 @@ function renderSponsors(container) {
           <div class="card">
             <div class="card__body">
               <h3>${s.name}</h3>
-              <p>${s.tier || 'General'}</p>
+              <p class="status status--info">${s.tier || 'General'}</p>
               <div style="margin-top:12px;">
-                ${Permissions.canManageSponsors() ? `<button class="btn btn--sm" onclick="handleDelete('sponsors','${s.id}','sponsor')">Delete</button>` : ''}
+                ${Permissions.canManageSponsors() ? `
+                  <button class="btn btn--sm btn--secondary" onclick="openSponsorModal('${s.id}')">Edit</button>
+                  <button class="btn btn--sm" onclick="handleDelete('sponsors','${s.id}','sponsor')">Delete</button>
+                ` : ''}
               </div>
             </div>
           </div>
@@ -670,11 +683,11 @@ function renderLogistics(container) {
 }
 
 function renderCommunication(container) {
-  container.innerHTML = `<h2>Communication</h2><p>Communication panel coming soon.</p>`;
+  container.innerHTML = `<h2>Communication</h2><p>Communication panel coming soon. This is where you would build your chat or announcement UI.</p>`;
 }
 
 function renderAnalytics(container) {
-  container.innerHTML = `<h2>Analytics</h2><p>Analytics available to leads and admins.</p>`;
+  container.innerHTML = `<h2>Analytics</h2><p>Analytics available to leads and admins. This is where you would add charts and graphs.</p>`;
 }
 
 // ---------- MISC UI Helpers ----------
@@ -724,11 +737,16 @@ function startCountdown() {
 
 // ---------- CRUD helpers (simple) ----------
 function handleDelete(node, id, label) {
-  if (!Permissions.canManageEvents() && node === 'events') {
-    alert('Insufficient permissions');
-    return;
+  if (!confirm(`Are you sure you want to delete this ${label}?`)) return;
+  
+  // Check permissions
+  if (node === 'events' && !Permissions.canManageEvents()) {
+    alert('Insufficient permissions'); return;
   }
-  if (!confirm(`Delete ${label}?`)) return;
+  if (node === 'sponsors' && !Permissions.canManageSponsors()) {
+    alert('Insufficient permissions'); return;
+  }
+
   db.ref(`${node}/${id}`).remove().then(() => {
     console.log(`${label} ${id} removed`);
   }).catch(err => console.error('Delete error', err));
@@ -740,9 +758,9 @@ function handleDelete(node, id, label) {
  * Closes any open modal
  */
 function closeModal() {
-  const overlay = document.getElementById('taskModalOverlay');
-  if (overlay) overlay.style.display = 'none';
-  // Add more logic here to hide other modals (team, event)
+  document.querySelectorAll('.modal-overlay').forEach(modal => {
+    modal.style.display = 'none';
+  });
 }
 
 /**
@@ -767,29 +785,19 @@ function populateSelect(elId, items, selectedValue = null) {
   });
 }
 
-/**
- * Opens the Task Modal.
- * If taskId is provided, it opens in "Edit Mode".
- * If taskId is null, it opens in "Create Mode".
- */
+// --- TASK MODAL ---
+
 function openTaskModal(taskId = null) {
   const modalOverlay = document.getElementById('taskModalOverlay');
   const modalTitle = document.getElementById('taskModalTitle');
   const form = document.getElementById('taskForm');
   
-  // Reset the form
   form.reset();
   document.getElementById('taskIdInput').value = '';
 
-  // --- Populate Dropdowns ---
-  
-  // 1. Populate Teams
   const allTeams = getObjectValues(dbData.teams).map(t => ({ id: t.id, name: `${t.icon || '❓'} ${t.name}` }));
-  
-  // 2. Populate Users (Assignees)
   const allUsers = getObjectValues(dbData.users);
   
-  // Function to update assignees based on selected team
   function updateAssignees(teamId, selectedAssigneeId = null) {
     const teamMembers = allUsers
       .filter(u => u.teamId === teamId || (u.role === 'admin' && !u.teamId)) // Team members + admins
@@ -797,10 +805,8 @@ function openTaskModal(taskId = null) {
     populateSelect('taskAssigneeInput', teamMembers, selectedAssigneeId);
   }
 
-  // Listen for team changes to update the assignee list
   document.getElementById('taskTeamInput').onchange = (e) => updateAssignees(e.target.value);
   
-  // --- Set Mode (Create vs Edit) ---
   if (taskId && dbData.tasks[taskId]) {
     // EDIT MODE
     const task = dbData.tasks[taskId];
@@ -812,38 +818,28 @@ function openTaskModal(taskId = null) {
     document.getElementById('taskPriorityInput').value = task.priority || 'Medium';
     document.getElementById('taskDueDateInput').value = task.dueDate || '';
     
-    // Set dropdowns and update assignees for the task's team
     populateSelect('taskTeamInput', allTeams, task.teamId);
     updateAssignees(task.teamId, task.assigneeId); // Load members for this team and select assignee
     
   } else {
     // CREATE MODE
     modalTitle.textContent = 'Create New Task';
-    // Set default due date to tomorrow
     const tomorrow = new Date();
     tomorrow.setDate(tomorrow.getDate() + 1);
     document.getElementById('taskDueDateInput').value = tomorrow.toISOString().split('T')[0];
     
-    // Set default team and assignees
     let defaultTeamId = currentUser.teamId || allTeams[0]?.id;
     populateSelect('taskTeamInput', allTeams, defaultTeamId);
     updateAssignees(defaultTeamId);
   }
 
-  // Show the modal
   modalOverlay.style.display = 'flex';
 }
 
-/**
- * Saves the task data from the form to Firebase
- */
 async function handleTaskFormSubmit(event) {
-  event.preventDefault(); // Stop the form from reloading the page
-  
-  // Get the ID from the hidden input.
+  event.preventDefault();
   const taskId = document.getElementById('taskIdInput').value;
   
-  // Collect data from the form
   const taskData = {
     title: document.getElementById('taskTitleInput').value,
     description: document.getElementById('taskDescInput').value,
@@ -856,33 +852,131 @@ async function handleTaskFormSubmit(event) {
 
   try {
     if (taskId) {
-      // This is an EDIT, so we update the existing task
       console.log(`Updating task ${taskId}`);
       await db.ref(`tasks/${taskId}`).update(taskData);
     } else {
-      // This is a NEW task, so we push it
       console.log('Creating new task');
-      // Add creation date for new tasks
       taskData.createdAt = new Date().toISOString();
-      taskData.creatorId = currentUser.uid; // Track who created it
+      taskData.creatorId = currentUser.uid;
       await db.ref('tasks').push(taskData);
     }
-    
-    closeModal(); // Close the modal on success
+    closeModal();
   } catch (err) {
     console.error("Error saving task:", err);
-    alert("Error saving task. Check the console for details.");
+    alert("Error saving task.");
   }
 }
 
-// --- Other placeholder functions (you can build these next!) ---
-function openEventModal(id = null) { alert('Open event modal (implement UI)'); }
-function openTeamModal() { alert('Open team modal (implement UI)'); }
-function openSponsorModal() { alert('Open sponsor modal (implement UI)'); }
 function openTaskDetailModal(id) { 
-  console.log(`Opening detail for task ${id}. For now, opening edit modal.`);
-  // Re-use the edit modal
-  openTaskModal(id);
+  console.log(`Opening detail for task ${id}.`);
+  openTaskModal(id); // Re-use the edit modal
+}
+
+// --- EVENT MODAL ---
+
+function openEventModal(eventId = null) {
+  const modalOverlay = document.getElementById('eventModalOverlay');
+  const modalTitle = document.getElementById('eventModalTitle');
+  const form = document.getElementById('eventForm');
+
+  form.reset();
+  document.getElementById('eventIdInput').value = '';
+
+  if (eventId && dbData.events[eventId]) {
+    // EDIT MODE
+    const event = dbData.events[eventId];
+    modalTitle.textContent = 'Edit Event';
+    document.getElementById('eventIdInput').value = eventId;
+    document.getElementById('eventNameInput').value = event.name || '';
+    document.getElementById('eventTypeInput').value = event.type || 'Technical';
+    document.getElementById('eventDateInput').value = event.date || '';
+    document.getElementById('eventVenueInput').value = event.venue || '';
+  } else {
+    // CREATE MODE
+    modalTitle.textContent = 'Add New Event';
+  }
+
+  modalOverlay.style.display = 'flex';
+}
+
+async function handleEventFormSubmit(event) {
+  event.preventDefault();
+  const eventId = document.getElementById('eventIdInput').value;
+  
+  const eventData = {
+    name: document.getElementById('eventNameInput').value,
+    type: document.getElementById('eventTypeInput').value,
+    date: document.getElementById('eventDateInput').value,
+    venue: document.getElementById('eventVenueInput').value,
+  };
+
+  try {
+    if (eventId) {
+      console.log(`Updating event ${eventId}`);
+      await db.ref(`events/${eventId}`).update(eventData);
+    } else {
+      console.log('Creating new event');
+      await db.ref('events').push(eventData);
+    }
+    closeModal();
+  } catch (err) {
+    console.error("Error saving event:", err);
+    alert("Error saving event.");
+  }
+}
+
+// --- SPONSOR MODAL ---
+
+function openSponsorModal(sponsorId = null) {
+  const modalOverlay = document.getElementById('sponsorModalOverlay');
+  const modalTitle = document.getElementById('sponsorModalTitle');
+  const form = document.getElementById('sponsorForm');
+
+  form.reset();
+  document.getElementById('sponsorIdInput').value = '';
+
+  if (sponsorId && dbData.sponsors[sponsorId]) {
+    // EDIT MODE
+    const sponsor = dbData.sponsors[sponsorId];
+    modalTitle.textContent = 'Edit Sponsor';
+    document.getElementById('sponsorIdInput').value = sponsorId;
+    document.getElementById('sponsorNameInput').value = sponsor.name || '';
+    document.getElementById('sponsorTierInput').value = sponsor.tier || 'General';
+  } else {
+    // CREATE MODE
+    modalTitle.textContent = 'Add New Sponsor';
+  }
+
+  modalOverlay.style.display = 'flex';
+}
+
+async function handleSponsorFormSubmit(event) {
+  event.preventDefault();
+  const sponsorId = document.getElementById('sponsorIdInput').value;
+  
+  const sponsorData = {
+    name: document.getElementById('sponsorNameInput').value,
+    tier: document.getElementById('sponsorTierInput').value,
+  };
+
+  try {
+    if (sponsorId) {
+      console.log(`Updating sponsor ${sponsorId}`);
+      await db.ref(`sponsors/${sponsorId}`).update(sponsorData);
+    } else {
+      console.log('Creating new sponsor');
+      await db.ref('sponsors').push(sponsorData);
+    }
+    closeModal();
+  } catch (err) {
+    console.error("Error saving sponsor:", err);
+    alert("Error saving sponsor.");
+  }
+}
+
+// --- TEAM MODAL (Placeholder) ---
+function openTeamModal() { 
+  alert('Open team modal (implement UI)'); 
 }
 
 // ----------------- END OF FILE -----------------
