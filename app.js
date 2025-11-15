@@ -1,4 +1,4 @@
-// app.js - DB-based authentication version (no Firebase Auth required)
+// app.js - Firebase Authentication version
 
 // ---------------- CONFIG ----------------
 const SYMPOSIUM_DATE = new Date('2026-02-26T10:00:00'); // adjust as needed
@@ -67,7 +67,7 @@ function calculateTeamProgress(teamId) {
   return Math.round((done / tasks.length) * 100);
 }
 
-// ---------------- DB-BASED AUTH (MAIN) ----------------
+// ---------------- FIREBASE AUTH (MAIN) ----------------
 
 // Show login UI (default)
 function showLoginPage() {
@@ -77,7 +77,7 @@ function showLoginPage() {
   document.getElementById('loginPage').style.display = 'flex';
 }
 
-// Show dashboard after successful DB login
+// Show dashboard after successful login
 function showDashboardAfterLogin() {
   initializeRealTimeListeners();
   document.getElementById('loginPage').style.display = 'none';
@@ -87,7 +87,7 @@ function showDashboardAfterLogin() {
   navigateToPage('dashboard');
 }
 
-// Handle login form submission (DB-based)
+// Handle login form submission (Firebase Auth)
 async function handleLogin(event) {
   if (event && event.preventDefault) event.preventDefault();
 
@@ -117,41 +117,22 @@ async function handleLogin(event) {
   loginButton.disabled = true;
 
   try {
-    // Query DB for the user (by email)
-    const usersRef = db.ref('/users');
-    const query = usersRef.orderByChild('email').equalTo(email);
-    const snapshot = await query.once('value');
+    // === THIS IS THE MAIN CHANGE ===
+    // Use Firebase Auth service to sign in
+    const userCredential = await auth.signInWithEmailAndPassword(email, password);
+    
+    // Auth was successful, but we still need to fetch the profile from the DB
+    const dbUid = userCredential.user.uid;
+    const profileSnapshot = await db.ref('/users/' + dbUid).once('value');
 
-    if (!snapshot.exists()) {
-      loginErrorMsg.textContent = 'User not found. Contact admin to create account.';
-      loginErrorMsg.classList.add('show');
-      loginButton.textContent = 'Sign In';
-      loginButton.disabled = false;
-      return;
+    if (!profileSnapshot.exists()) {
+        // This should not happen if your DB is synced with Auth users
+        throw new Error("Auth successful, but no user profile in database.");
     }
 
-    const matches = snapshot.val();
-    const dbUid = Object.keys(matches)[0];
-    const profile = matches[dbUid];
+    const profile = profileSnapshot.val();
 
-    // If password doesn't exist in DB, create a temporary password and save it
-    // (developer convenience) - you may remove this behavior if undesired
-    if (!profile.password) {
-      const tempPwd = Math.random().toString(36).slice(2, 10);
-      await usersRef.child(dbUid).update({ password: tempPwd });
-      profile.password = tempPwd;
-      console.warn(`No password present for ${email}. Created temp password.`);
-    }
-
-    if (profile.password !== password) {
-      loginErrorMsg.textContent = 'Incorrect password.';
-      loginErrorMsg.classList.add('show');
-      loginButton.textContent = 'Sign In';
-      loginButton.disabled = false;
-      return;
-    }
-
-    // Build currentUser from DB profile (use DB key as uid)
+    // Build currentUser from DB profile
     currentUser = {
       uid: dbUid,
       email: profile.email,
@@ -160,12 +141,16 @@ async function handleLogin(event) {
       teamId: profile.teamId || null
     };
 
-    console.log(`DB login success: ${currentUser.name} (${currentUser.role})`);
+    console.log(`Firebase Auth login success: ${currentUser.name} (${currentUser.role})`);
     showDashboardAfterLogin();
-
+    
   } catch (err) {
-    console.error('DB login error:', err);
-    loginErrorMsg.textContent = 'An error occurred during login. See console.';
+    console.error('Firebase Auth login error:', err);
+    if (err.code === 'auth/user-not-found' || err.code === 'auth/wrong-password' || err.code === 'auth/invalid-credential') {
+       loginErrorMsg.textContent = 'Incorrect email or password.';
+    } else {
+       loginErrorMsg.textContent = 'An error occurred during login.';
+    }
     loginErrorMsg.classList.add('show');
   } finally {
     loginButton.textContent = 'Sign In';
@@ -173,35 +158,66 @@ async function handleLogin(event) {
   }
 }
 
-// Logout for DB auth
+// Logout for Firebase Auth
 function handleLogout() {
-  currentUser = null;
-  db.ref().off();
-  document.getElementById('mainDashboard').style.display = 'none';
-  document.getElementById('loginPage').style.display = 'flex';
-  const form = document.getElementById('loginForm');
-  if (form) form.reset();
-  console.log('Logged out (DB auth)');
+  auth.signOut().then(() => {
+    currentUser = null;
+    db.ref().off();
+    document.getElementById('mainDashboard').style.display = 'none';
+    document.getElementById('loginPage').style.display = 'flex';
+    const form = document.getElementById('loginForm');
+    if (form) form.reset();
+    console.log('Logged out (Firebase Auth)');
+  }).catch((err) => {
+    console.error('Logout error:', err);
+  });
 }
 
-// Hook the login form
+// Hook the login form and listen for auth state
 document.addEventListener('DOMContentLoaded', () => {
   const loginFormEl = document.getElementById('loginForm');
   if (loginFormEl) {
-    try {
-      loginFormEl.removeEventListener('submit', handleLogin);
-    } catch (e) {}
     loginFormEl.addEventListener('submit', handleLogin);
   }
 
   const logoutBtn = document.getElementById('logoutBtn');
   if (logoutBtn) {
-    logoutBtn.removeEventListener('click', handleLogout);
     logoutBtn.addEventListener('click', handleLogout);
   }
 
-  // Ensure we start on login page
-  showLoginPage();
+  // === NEW: Listen for Auth State Changes ===
+  auth.onAuthStateChanged(async (user) => {
+    if (user) {
+      // User is signed in. Fetch their profile from the DB.
+      const dbUid = user.uid;
+      const profileSnapshot = await db.ref('/users/'D + dbUid).once('value');
+
+      if (!profileSnapshot.exists()) {
+        console.error("User is logged in, but no profile found in DB. Logging out.");
+        auth.signOut();
+        return;
+      }
+      
+      const profile = profileSnapshot.val();
+      
+      // Build currentUser
+      currentUser = {
+        uid: dbUid,
+        email: profile.email,
+        name: profile.name || (profile.email ? profile.email.split('@')[0] : 'User'),
+        role: profile.role || 'volunteer',
+        teamId: profile.teamId || null
+      };
+
+      console.log(`Auth state change: ${currentUser.name} is logged in.`);
+      showDashboardAfterLogin();
+
+    } else {
+      // User is signed out. Show the login page.
+      console.log('Auth state change: User is logged out.');
+      showLoginPage();
+    }
+  });
 
   // Wire nav clicks (single delegate)
   document.querySelectorAll('.nav-item').forEach(item => {
