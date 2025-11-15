@@ -49,21 +49,27 @@
   --color-bg-7: rgba(236, 72, 153, 0.08);
   --color-bg-8: rgba(6, 182, 212, 0.08);
 
-  /* Semantic Color Tokens (Light Mode) */
-  --color-background: #F9FAFB;
-  --color-surface: var(--color-white);
-  --color-text: var(--color-slate-900);
-  --color-text-secondary: var(--color-slate-500);
+  /* * APPLE UI MODIFICATION 
+   * We change the core colors to feel more like macOS/iOS.
+   */
+  --color-background: #F4F4F9; /* A cooler, more "Apple" white */
+  --color-surface: rgba(255, 255, 255, 0.75); /* Frosted glass */
+  --color-surface-opaque: var(--color-white); /* For cards */
+  --color-border-subtle: rgba(0, 0, 0, 0.07);
+  --color-border: rgba(0, 0, 0, 0.1);
+  --color-card-border: var(--color-border-subtle);
+  
+  --color-text: #1D1D1F; /* Apple's primary text color */
+  --color-text-secondary: rgba(60, 60, 67, 0.7); /* Apple's secondary */
+
   --color-primary: var(--color-primary-purple);
   --color-primary-hover: var(--color-primary-indigo);
   --color-primary-active: var(--color-primary-indigo);
-  --color-secondary: rgba(var(--color-brown-600-rgb), 0.12);
-  --color-secondary-hover: rgba(var(--color-brown-600-rgb), 0.2);
-  --color-secondary-active: rgba(var(--color-brown-600-rgb), 0.25);
-  --color-border: rgba(var(--color-brown-600-rgb), 0.2);
+  --color-secondary: rgba(var(--color-slate-500-rgb), 0.1);
+  --color-secondary-hover: rgba(var(--color-slate-500-rgb), 0.15);
+  --color-secondary-active: rgba(var(--color-slate-500-rgb), 0.2);
   --color-btn-primary-text: var(--color-white);
-  --color-card-border: rgba(var(--color-brown-600-rgb), 0.12);
-  --color-card-border-inner: rgba(var(--color-brown-600-rgb), 0.12);
+  
   --color-error: var(--color-red-500);
   --color-success: var(--color-teal-500);
   --color-warning: var(--color-orange-500);
@@ -74,8 +80,8 @@
   /* Common style patterns */
   --focus-ring: 0 0 0 3px var(--color-focus-ring);
   --focus-outline: 2px solid var(--color-primary);
-  --status-bg-opacity: 0.15;
-  --status-border-opacity: 0.25;
+  --status-bg-opacity: 0.1;
+  --status-border-opacity: 0.0; /* Remove borders from status */
 
   /* RGB versions for opacity control */
   --color-success-rgb: 33, 128, 141;
@@ -83,11 +89,15 @@
   --color-warning-rgb: 168, 75, 47;
   --color-info-rgb: 98, 108, 113;
 
-  /* Typography */
-  --font-family-base: "FKGroteskNeue", "Geist", "Inter", -apple-system,
+  /* * APPLE UI MODIFICATION 
+   * Prioritize Inter and Geist for that crisp "SF Pro" feel.
+   */
+  --font-family-base: "Inter", "Geist", -apple-system,
     BlinkMacSystemFont, "Segoe UI", Roboto, sans-serif;
+  --font-family-headings: "Geist", "Inter", -apple-system, sans-serif;
   --font-family-mono: "Berkeley Mono", ui-monospace, SFMono-Regular, Menlo,
     Monaco, Consolas, monospace;
+  
   --font-size-xs: 11px;
   --font-size-sm: 12px;
   --font-size-base: 14px;
@@ -99,11 +109,11 @@
   --font-size-4xl: 30px;
   --font-weight-normal: 400;
   --font-weight-medium: 500;
-  --font-weight-semibold: 550;
-  --font-weight-bold: 600;
+  --font-weight-semibold: 600; /* Apple uses 600 for semibold */
+  --font-weight-bold: 700;
   --line-height-tight: 1.2;
   --line-height-normal: 1.5;
-  --letter-spacing-tight: -0.01em;
+  --letter-spacing-tight: -0.02em; /* Tighter letter-spacing */
 
   /* Spacing */
   --space-0: 0;
@@ -119,23 +129,24 @@
   --space-24: 24px;
   --space-32: 32px;
 
-  /* Border Radius */
+  /* * APPLE UI MODIFICATION 
+   * Use rounder corners, more like iOS/macOS.
+   */
   --radius-sm: 6px;
-  --radius-base: 8px;
-  --radius-md: 10px;
-  --radius-lg: 12px;
-  --radius-xl: 16px;
+  --radius-base: 10px; /* Softer radius */
+  --radius-md: 12px;
+  --radius-lg: 16px; /* Softer radius */
+  --radius-xl: 20px; /* Softer radius */
   --radius-full: 9999px;
 
-  /* Shadows */
+  /* * APPLE UI MODIFICATION 
+   * Use more diffuse, softer shadows.
+   */
   --shadow-xs: 0 1px 2px rgba(0, 0, 0, 0.02);
-  --shadow-sm: 0 1px 3px rgba(0, 0, 0, 0.04), 0 1px 2px rgba(0, 0, 0, 0.02);
-  --shadow-md: 0 4px 6px -1px rgba(0, 0, 0, 0.04),
-    0 2px 4px -1px rgba(0, 0, 0, 0.02);
-  --shadow-lg: 0 10px 15px -3px rgba(0, 0, 0, 0.04),
-    0 4px 6px -2px rgba(0, 0, 0, 0.02);
-  --shadow-xl: 0 20px 25px -5px rgba(0, 0, 0, 0.1),
-    0 10px 10px -5px rgba(0, 0, 0, 0.04);
+  --shadow-sm: 0 2px 8px -2px rgba(0, 0, 0, 0.04);
+  --shadow-md: 0 4px 12px -2px rgba(0, 0, 0, 0.06);
+  --shadow-lg: 0 10px 20px -5px rgba(0, 0, 0, 0.08);
+  --shadow-xl: 0 20px 30px -10px rgba(0, 0, 0, 0.1);
   --shadow-inset-sm: inset 0 1px 0 rgba(255, 255, 255, 0.15),
     inset 0 -1px 0 rgba(0, 0, 0, 0.03);
 
@@ -143,6 +154,7 @@
   --duration-fast: 150ms;
   --duration-normal: 250ms;
   --ease-standard: cubic-bezier(0.16, 1, 0.3, 1);
+  --ease-apple: cubic-bezier(0.25, 0.1, 0.25, 1); /* Apple's default ease */
 
   /* Layout */
   --container-sm: 640px;
@@ -167,6 +179,7 @@ html {
   color: var(--color-text);
   background-color: var(--color-background);
   -webkit-font-smoothing: antialiased;
+  -moz-osx-font-smoothing: grayscale; /* Crisper fonts */
   box-sizing: border-box;
 }
 
@@ -189,6 +202,7 @@ h4,
 h5,
 h6 {
   margin: 0;
+  font-family: var(--font-family-headings);
   font-weight: var(--font-weight-semibold);
   line-height: var(--line-height-tight);
   color: var(--color-text);
@@ -221,7 +235,7 @@ p {
 a {
   color: var(--color-primary);
   text-decoration: none;
-  transition: color var(--duration-fast) var(--ease-standard);
+  transition: color var(--duration-fast) var(--ease-apple);
 }
 
 a:hover {
@@ -239,7 +253,7 @@ a:hover {
   font-weight: 500;
   line-height: 1.5;
   cursor: pointer;
-  transition: all var(--duration-normal) var(--ease-standard);
+  transition: all 0.2s var(--ease-apple);
   border: none;
   text-decoration: none;
   position: relative;
@@ -253,17 +267,19 @@ a:hover {
 .btn--primary {
   background: linear-gradient(135deg, var(--color-primary-purple), var(--color-primary-indigo));
   color: var(--color-btn-primary-text);
+  box-shadow: 0 2px 5px rgba(99, 102, 241, 0.2);
 }
 
 .btn--primary:hover {
-  background: var(--color-primary-hover);
-  transform: translateY(-1px);
-  box-shadow: var(--shadow-md);
+  transform: translateY(-2px);
+  box-shadow: 0 4px 15px -5px var(--color-primary-purple), 
+              0 2px 20px -5px var(--color-accent-cyan);
 }
 
 .btn--primary:active {
   background: var(--color-primary-active);
   transform: translateY(0);
+  box-shadow: none;
 }
 
 .btn--secondary {
@@ -318,17 +334,17 @@ a:hover {
   font-size: var(--font-size-md);
   line-height: 1.5;
   color: var(--color-text);
-  background-color: var(--color-surface);
+  background-color: var(--color-background); /* Lighter background */
   border: 1px solid var(--color-border);
   border-radius: var(--radius-base);
-  transition: border-color var(--duration-fast) var(--ease-standard),
-    box-shadow var(--duration-fast) var(--ease-standard);
+  transition: border-color var(--duration-fast) var(--ease-apple),
+    box-shadow var(--duration-fast) var(--ease-apple);
 }
 
 .form-control:focus {
   border-color: var(--color-primary);
-  outline: var(--focus-outline);
-  outline-offset: -1px;
+  outline: none; /* Removed outline for a cleaner focus ring */
+  box-shadow: var(--focus-ring);
 }
 
 .form-label {
@@ -354,23 +370,22 @@ a:hover {
   display: block;
 }
 
-/* Card component */
+/* * APPLE UI MODIFICATION 
+ * Softer cards, rounder corners, and better hover.
+ */
 .card {
-  background-color: var(--color-surface);
+  background-color: var(--color-surface-opaque);
   border-radius: var(--radius-lg);
-  /* We remove the hard border... */
-  border: 1px solid transparent; 
-  /* ...and replace it with a softer, multi-layered shadow */
-  box-shadow: 0 1px 2px rgba(0, 0, 0, 0.04), 
-              0 2px 8px rgba(0, 0, 0, 0.03);
+  border: 1px solid var(--color-border-subtle);
+  box-shadow: var(--shadow-sm);
   overflow: hidden;
-  transition: box-shadow var(--duration-normal) var(--ease-standard),
-              transform var(--duration-normal) var(--ease-standard);
+  transition: box-shadow 0.3s var(--ease-apple),
+              transform 0.3s var(--ease-apple);
 }
 
 .card:hover {
   box-shadow: var(--shadow-md);
-  transform: translateY(-2px);
+  transform: translateY(-3px);
 }
 
 .card__body {
@@ -385,20 +400,19 @@ a:hover {
   border-radius: var(--radius-full);
   font-weight: var(--font-weight-medium);
   font-size: var(--font-size-sm);
+  border: none; /* Removed border */
 }
 
 .status--success,
 .status--done {
   background-color: rgba(var(--color-success-rgb, 33, 128, 141), var(--status-bg-opacity));
   color: var(--color-success);
-  border: 1px solid rgba(var(--color-success-rgb, 33, 128, 141), var(--status-border-opacity));
 }
 
 .status--error,
 .status--high {
   background-color: rgba(var(--color-error-rgb, 192, 21, 47), var(--status-bg-opacity));
   color: var(--color-error);
-  border: 1px solid rgba(var(--color-error-rgb, 192, 21, 47), var(--status-border-opacity));
 }
 
 .status--warning,
@@ -406,7 +420,6 @@ a:hover {
 .status--medium {
   background-color: rgba(var(--color-warning-rgb, 168, 75, 47), var(--status-bg-opacity));
   color: var(--color-warning);
-  border: 1px solid rgba(var(--color-warning-rgb, 168, 75, 47), var(--status-border-opacity));
 }
 
 .status--info,
@@ -414,7 +427,6 @@ a:hover {
 .status--low {
   background-color: rgba(var(--color-info-rgb, 98, 108, 113), var(--status-bg-opacity));
   color: var(--color-info);
-  border: 1px solid rgba(var(--color-info-rgb, 98, 108, 113), var(--status-border-opacity));
 }
 
 /* LOGIN PAGE STYLES */
@@ -431,7 +443,7 @@ a:hover {
   width: 100%;
   max-width: 1200px;
   min-height: 600px;
-  background: var(--color-surface);
+  background: var(--color-surface-opaque);
   border-radius: var(--radius-xl);
   box-shadow: var(--shadow-xl);
   overflow: hidden;
@@ -460,7 +472,7 @@ a:hover {
   animation: float 3s ease-in-out infinite;
 }
 
-/* MODIFICATION 1: Updated float animation */
+/* Updated float animation */
 @keyframes float {
   0%, 100% { 
     transform: translateY(0) rotate(0); 
@@ -606,11 +618,15 @@ a:hover {
   background: var(--color-background);
 }
 
-/* SIDEBAR */
+/* * APPLE UI MODIFICATION 
+ * Apply "frosted glass" to sidebar.
+ */
 .sidebar {
   width: var(--sidebar-width);
   background: var(--color-surface);
-  border-right: 1px solid var(--color-border);
+  backdrop-filter: blur(20px);
+  -webkit-backdrop-filter: blur(20px);
+  border-right: 1px solid var(--color-border-subtle);
   display: flex;
   flex-direction: column;
   position: fixed;
@@ -618,12 +634,12 @@ a:hover {
   top: 0;
   bottom: 0;
   z-index: 100;
-  transition: transform var(--duration-normal) var(--ease-standard);
+  transition: transform var(--duration-normal) var(--ease-apple);
 }
 
 .sidebar-header {
   padding: var(--space-20);
-  border-bottom: 1px solid var(--color-border);
+  border-bottom: 1px solid var(--color-border-subtle);
   display: flex;
   align-items: center;
   justify-content: space-between;
@@ -663,6 +679,9 @@ a:hover {
   overflow-y: auto;
 }
 
+/* * APPLE UI MODIFICATION 
+ * Subtler nav hover, and a "pill" shape for active.
+ */
 .nav-item {
   display: flex;
   align-items: center;
@@ -671,20 +690,24 @@ a:hover {
   color: var(--color-text-secondary);
   border-radius: var(--radius-base);
   margin-bottom: var(--space-4);
-  transition: all 0.2s ease;
+  transition: all 0.2s var(--ease-apple);
   cursor: pointer;
 }
 
 .nav-item:hover {
-  background: var(--color-bg-1);
-  color: var(--color-text);
-  transform: translateX(4px);
+  background: none;
+  color: var(--color-primary);
+  transform: none;
 }
 
 .nav-item.active {
-  background: linear-gradient(135deg, var(--color-primary-purple), var(--color-primary-indigo));
+  background: var(--color-primary);
   color: var(--color-white);
-  box-shadow: 0 4px 15px -8px var(--color-primary-purple);
+  box-shadow: var(--shadow-md);
+}
+
+.nav-item.active:hover {
+  color: var(--color-white);
 }
 
 .nav-icon {
@@ -698,7 +721,7 @@ a:hover {
 
 .sidebar-footer {
   padding: var(--space-20);
-  border-top: 1px solid var(--color-border);
+  border-top: 1px solid var(--color-border-subtle);
 }
 
 .user-profile {
@@ -744,11 +767,15 @@ a:hover {
   flex-direction: column;
 }
 
-/* HEADER */
+/* * APPLE UI MODIFICATION 
+ * Apply "frosted glass" to header.
+ */
 .header {
   height: var(--header-height);
   background: var(--color-surface);
-  border-bottom: 1px solid var(--color-border);
+  backdrop-filter: blur(20px);
+  -webkit-backdrop-filter: blur(20px);
+  border-bottom: 1px solid var(--color-border-subtle);
   display: flex;
   align-items: center;
   justify-content: space-between;
@@ -809,7 +836,7 @@ a:hover {
   position: relative;
   cursor: pointer;
   padding: var(--space-8);
-  transition: transform var(--duration-fast) var(--ease-standard);
+  transition: transform var(--duration-fast) var(--ease-apple);
 }
 
 .notification-bell:hover {
@@ -845,10 +872,10 @@ a:hover {
   top: 0;
   bottom: 0;
   width: 400px;
-  background: var(--color-surface);
+  background: var(--color-surface-opaque);
   box-shadow: var(--shadow-xl);
   z-index: 200;
-  transition: right var(--duration-normal) var(--ease-standard);
+  transition: right var(--duration-normal) var(--ease-apple);
   display: flex;
   flex-direction: column;
 }
@@ -875,7 +902,7 @@ a:hover {
   padding: var(--space-16);
   border-bottom: 1px solid var(--color-border);
   cursor: pointer;
-  transition: background var(--duration-fast) var(--ease-standard);
+  transition: background var(--duration-fast) var(--ease-apple);
 }
 
 .notification-item:hover {
@@ -909,11 +936,16 @@ a:hover {
   margin-top: var(--space-4);
 }
 
-/* PAGE CONTENT */
+/* * APPLE UI MODIFICATION 
+ * More padding and a max-width for "breathing room."
+ */
 .page-content {
   flex: 1;
   padding: var(--space-32);
   overflow-y: auto;
+  max-width: 1400px; /* Constrains content */
+  width: 100%;
+  margin: 0 auto; /* Centers the content */
 }
 
 /* WELCOME BANNER */
@@ -983,7 +1015,7 @@ a:hover {
 }
 
 .stat-card {
-  background: var(--color-surface);
+  background: var(--color-surface-opaque);
   padding: var(--space-20);
   border-radius: var(--radius-lg);
   border: 1px solid var(--color-card-border);
@@ -991,11 +1023,11 @@ a:hover {
   display: flex;
   align-items: center;
   gap: var(--space-16);
-  transition: transform var(--duration-fast) var(--ease-standard), box-shadow var(--duration-fast) var(--ease-standard);
+  transition: transform 0.2s var(--ease-apple), box-shadow 0.2s var(--ease-apple);
 }
 
 .stat-card:hover {
-  transform: translateY(-2px);
+  transform: translateY(-3px);
   box-shadow: var(--shadow-md);
 }
 
@@ -1015,6 +1047,7 @@ a:hover {
 .stat-icon.bg-3 { background: var(--color-bg-3); }
 .stat-icon.bg-4 { background: var(--color-bg-4); }
 .stat-icon.bg-5 { background: var(--color-bg-5); }
+
 
 .stat-info {
   flex: 1;
@@ -1040,7 +1073,7 @@ a:hover {
 
 /* PROGRESS SECTION */
 .progress-section {
-  background: var(--color-surface);
+  background: var(--color-surface-opaque);
   padding: var(--space-24);
   border-radius: var(--radius-lg);
   border: 1px solid var(--color-card-border);
@@ -1057,6 +1090,8 @@ a:hover {
 .section-title {
   font-size: var(--font-size-xl);
   font-weight: var(--font-weight-semibold);
+  letter-spacing: 0.2px;
+  color: var(--color-text);
 }
 
 .progress-circle-container {
@@ -1188,7 +1223,7 @@ a:hover {
 
 /* TASKS LIST */
 .tasks-section {
-  background: var(--color-surface);
+  background: var(--color-surface-opaque);
   padding: var(--space-24);
   border-radius: var(--radius-lg);
   border: 1px solid var(--color-card-border);
@@ -1209,7 +1244,7 @@ a:hover {
   background: var(--color-background);
   border-radius: var(--radius-base);
   border: 1px solid var(--color-border);
-  transition: all var(--duration-fast) var(--ease-standard);
+  transition: all var(--duration-fast) var(--ease-apple);
   cursor: pointer;
 }
 
@@ -1333,13 +1368,13 @@ a:hover {
 }
 
 .kanban-card {
-  background: var(--color-surface);
+  background: var(--color-surface-opaque);
   border-radius: var(--radius-base);
   padding: var(--space-16);
   border: 1px solid var(--color-card-border);
   box-shadow: var(--shadow-sm);
   cursor: pointer;
-  transition: all var(--duration-fast) var(--ease-standard);
+  transition: all var(--duration-fast) var(--ease-apple);
 }
 
 .kanban-card:hover {
@@ -1349,7 +1384,7 @@ a:hover {
 
 .kanban-card-title {
   font-size: var(--font-size-base);
-  font-weight: var(--font-weight-medium);
+  font-weight: 550; /* A good "semibold" */
   color: var(--color-text);
   margin-bottom: var(--space-8);
 }
@@ -1374,7 +1409,7 @@ a:hover {
 /* TABLE */
 .data-table {
   width: 100%;
-  background: var(--color-surface);
+  background: var(--color-surface-opaque);
   border-radius: var(--radius-lg);
   overflow: hidden;
   border: 1px solid var(--color-card-border);
@@ -1417,7 +1452,7 @@ a:hover {
   padding: var(--space-4);
   cursor: pointer;
   font-size: 18px;
-  transition: transform var(--duration-fast) var(--ease-standard);
+  transition: transform var(--duration-fast) var(--ease-apple);
 }
 
 .icon-btn:hover {
@@ -1428,8 +1463,9 @@ a:hover {
 .modal-overlay {
   position: fixed;
   inset: 0;
-  background: rgba(0, 0, 0, 0.5);
-  backdrop-filter: blur(4px);
+  background: rgba(0, 0, 0, 0.3); /* Softer overlay */
+  backdrop-filter: blur(10px);
+  -webkit-backdrop-filter: blur(10px);
   z-index: 1000;
   display: flex;
   align-items: center;
@@ -1444,14 +1480,15 @@ a:hover {
 }
 
 .modal {
-  background: var(--color-surface);
+  background: var(--color-surface-opaque);
   border-radius: var(--radius-lg);
   max-width: 600px;
   width: 100%;
   max-height: 90vh;
   overflow-y: auto;
   box-shadow: var(--shadow-xl);
-  animation: slideUp 0.3s ease;
+  animation: slideUp 0.3s var(--ease-apple);
+  border: 1px solid var(--color-border-subtle);
 }
 
 @keyframes slideUp {
@@ -1461,7 +1498,7 @@ a:hover {
 
 .modal-header {
   padding: var(--space-24);
-  border-bottom: 1px solid var(--color-border);
+  border-bottom: 1px solid var(--color-border-subtle);
   display: flex;
   align-items: center;
   justify-content: space-between;
@@ -1479,7 +1516,7 @@ a:hover {
   cursor: pointer;
   padding: var(--space-4);
   color: var(--color-text-secondary);
-  transition: color var(--duration-fast) var(--ease-standard);
+  transition: color var(--duration-fast) var(--ease-apple);
 }
 
 .modal-close:hover {
@@ -1492,7 +1529,7 @@ a:hover {
 
 .modal-footer {
   padding: var(--space-24);
-  border-top: 1px solid var(--color-border);
+  border-top: 1px solid var(--color-border-subtle);
   display: flex;
   gap: var(--space-12);
   justify-content: flex-end;
@@ -1542,25 +1579,4 @@ a:hover {
   .login-left {
     min-height: 200px;
   }
-}
-
-/* MODIFICATION 2: Add UI Polish */
-
-/* Add a "glow" to primary buttons on hover */
-.btn--primary:hover {
-  box-shadow: 0 4px 15px -5px var(--color-primary-purple), 
-              0 2px 20px -5px var(--color-accent-cyan);
-}
-
-/* Make section titles more distinct */
-.section-title {
-  font-weight: 600; /* A bit bolder than the default */
-  letter-spacing: 0.2px;
-  color: var(--color-text); /* Ensure it's the primary text color */
-}
-
-/* Make the kanban card titles easier to read */
-.kanban-card-title {
-  font-weight: 550; /* A good "semibold" */
-  color: var(--color-text);
 }
