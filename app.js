@@ -190,7 +190,7 @@ document.addEventListener('DOMContentLoaded', () => {
     if (user) {
       // User is signed in. Fetch their profile from the DB.
       const dbUid = user.uid;
-      const profileSnapshot = await db.ref('/users/'D + dbUid).once('value');
+      const profileSnapshot = await db.ref('/users/' + dbUid).once('value');
 
       if (!profileSnapshot.exists()) {
         console.error("User is logged in, but no profile found in DB. Logging out.");
