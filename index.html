@@ -1,0 +1,176 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>NEXERA2k25 - Symposium Dashboard</title>
+    <link rel="stylesheet" href="style.css">
+
+    <!-- Firebase SDK scripts -->
+    <script src="https://www.gstatic.com/firebasejs/10.0.0/firebase-app-compat.js"></script>
+    <script src="https://www.gstatic.com/firebasejs/10.0.0/firebase-database-compat.js"></script>
+    <script src="https://www.gstatic.com/firebasejs/10.0.0/firebase-auth-compat.js"></script>
+
+    <!-- Your Firebase Configuration -->
+    <script src="firebase-config.js"></script>
+</head>
+
+<body>
+    <!-- Login Page -->
+    <div id="loginPage" class="login-page">
+        <div class="login-container">
+            <div class="login-left">
+                <div class="login-brand">
+                    <div class="brand-icon">🚀</div>
+                    <h1 class="brand-title">NEXERA2k25</h1>
+                    <p class="brand-tagline">ECE College of Engineering</p>
+                    <p class="brand-subtitle">Event Management Dashboard</p>
+                </div>
+                <div class="login-animation">
+                    <div class="particle"></div>
+                    <div class="particle"></div>
+                    <div class="particle"></div>
+                    <div class="particle"></div>
+                    <div class="particle"></div>
+                </div>
+            </div>
+            <div class="login-right">
+                <div class="login-form-card">
+                    <h2>Welcome Back</h2>
+                    <p class="login-subtitle">Sign in to access the dashboard</p>
+                    <form id="loginForm">
+
+                        <div class="form-group">
+                            <label class="form-label">College Email</label>
+                            <input type="email" id="emailInput" class="form-control" placeholder="yourname@cit.edu.in" required>
+                            <div id="emailError" class="error-message"></div>
+                        </div>
+
+                        <div class="form-group">
+                            <label class="form-label">Password</label>
+                            <input type="password" id="passwordInput" class="form-control" placeholder="Enter your password" required>
+                        </div>
+
+                        <div id="loginErrorMessage" class="error-message" style="margin-bottom: 16px;"></div>
+
+                        <button type="submit" id="loginButton" class="btn btn--primary btn--full-width">Sign In</button>
+
+                    </form> 
+                </div>
+            </div>
+        </div>
+    </div>
+
+    <!-- Main Dashboard -->
+    <div id="mainDashboard" class="dashboard" style="display: none;">
+        <aside id="sidebar" class="sidebar">
+            <div class="sidebar-header">
+                <div class="sidebar-brand">
+                    <span class="brand-icon">🚀</span>
+                    <span class="brand-text">NEXERA2k25</span>
+                </div>
+                <button id="sidebarToggle" class="sidebar-toggle">☰</button>
+            </div>
+            <nav class="sidebar-nav">
+                <a href="#" class="nav-item active" data-page="dashboard">
+                    <span class="nav-icon">🏠</span>
+                    <span class="nav-text">Dashboard</span>
+                </a>
+                <a href="#" class="nav-item" data-page="teams">
+                    <span class="nav-icon">👥</span>
+                    <span class="nav-text">Teams</span>
+                </a>
+                <a href="#" class="nav-item" data-page="events">
+                    <span class="nav-icon">📅</span>
+                    <span class="nav-text">Events</span>
+                </a>
+                <a href="#" class="nav-item" data-page="tasks">
+                    <span class="nav-icon">✓</span>
+                    <span class="nav-text">Tasks</span>
+                </a>
+                <a href="#" class="nav-item" data-page="sponsors">
+                    <span class="nav-icon">💰</span>
+                    <span class="nav-text">Sponsors</span>
+                </a>
+                <a href="#" class="nav-item" data-page="logistics">
+                    <span class="nav-icon">📦</span>
+                    <span class="nav-text">Logistics</span>
+                </a>
+                <a href="#" class="nav-item" data-page="communication">
+                    <span class="nav-icon">💬</span>
+                    <span class="nav-text">Communication</span>
+                </a>
+                <a href="#" class="nav-item" data-page="analytics">
+                    <span class="nav-icon">📊</span>
+                    <span class="nav-text">Analytics</span>
+                </a>
+            </nav>
+            <div class="sidebar-footer">
+                <div class="user-profile">
+                    <div class="user-avatar" id="sidebarAvatar">A</div>
+                    <div class="user-info">
+                        <div class="user-name" id="sidebarUserName">Loading...</div>
+                        <div class="user-role" id="sidebarUserRole">Loading...</div>
+                    </div>
+                </div>
+                <button id="logoutBtn" class="btn btn--secondary btn--sm btn--full-width">Logout</button>
+            </div>
+        </aside>
+
+        <!-- Main Content -->
+        <div class="main-content">
+            <header class="header">
+                <div class="header-left">
+                    <h1 class="header-title">NEXERA2k25 - National Level Symposium</h1>
+                </div>
+                <div class="header-center">
+                    <div class="countdown" id="countdown">
+                        <div class="countdown-item">
+                            <span class="countdown-value" id="countdownDays">0</span>
+                            <span class="countdown-label">Days</span>
+                        </div>
+                        <div class="countdown-item">
+                            <span class="countdown-value" id="countdownHours">0</span>
+                            <span class="countdown-label">Hours</span>
+                        </div>
+                        <div class="countdown-item">
+                            <span class="countdown-value" id="countdownMinutes">0</span>
+                            <span class="countdown-label">Minutes</span>
+                        </div>
+                        <div class="countdown-item">
+                            <span class="countdown-value" id="countdownSeconds">0</span>
+                            <span class="countdown-label">Seconds</span>
+                        </div>
+                    </div>
+                </div>
+                <div class="header-right">
+                    <div class="notification-bell" id="notificationBell">
+                        <span class="bell-icon">🔔</span>
+                        <span class="notification-badge hidden" id="notificationBadge">0</span>
+                    </div>
+                    <div class="user-menu">
+                        <div class="user-avatar" id="headerAvatar">A</div>
+                    </div>
+                </div>
+            </header>
+
+            <!-- Page Content -->
+            <div id="pageContent" class="page-content"></div>
+        </div>
+
+        <!-- Notification Panel -->
+        <div id="notificationPanel" class="notification-panel">
+            <div class="notification-header">
+                <h3>Notifications</h3>
+                <button id="markAllRead" class="btn btn--sm">Mark all read</button>
+            </div>
+            <div id="notificationList" class="notification-list"></div>
+        </div>
+
+        <!-- Modal Container -->
+        <div id="modalContainer"></div>
+    </div>
+
+    <script src="app.js"></script>
+</body>
+</html>
