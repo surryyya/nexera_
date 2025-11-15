@@ -1,0 +1,58 @@
+{
+  "users": {
+    "YyryyjQZhMagDArvJSEFpXXBLcA3": {
+      "name": "Admin",
+      "email": "71762304123@cit.edu.in",
+      "role": "admin",
+      "teamId": null
+    },
+    "WW87bldUggbspkpu05tknZBKKKh1": {
+      "name": "Team Lead 1",
+      "email": "71762304115@cit.edu.in",
+      "role": "team_lead",
+      "teamId": "team1"
+    },
+    "rKHi2fdIYfUKjwVj54QdVljrmYu2": {
+      "name": "Team Lead 2",
+      "email": "71762304095@cit.edu.in",
+      "role": "team_lead",
+      "teamId": "team2"
+    },
+    "vfIeBFYjerNsNCkuUyDTsTR6wF43": {
+      "name": "Team Lead 3",
+      "email": "71762304107@cit.edu.in",
+      "role": "team_lead",
+      "teamId": "team3"
+    },
+    "NpbJHyW6KSO2sVOuBFeQwdQDu7L2": {
+      "name": "Team Lead 4",
+      "email": "71762304099@cit.edu.in",
+      "role": "team_lead",
+      "teamId": "team4"
+    }
+  },
+
+  "teams": {
+    "team1": { "name": "Event Management", "description": "Handles event coordination", "progress": 0 },
+    "team2": { "name": "Registration", "description": "Manages attendee registrations", "progress": 0 },
+    "team3": { "name": "Hospitality", "description": "Guest care, session support", "progress": 0 },
+    "team4": { "name": "Logistics", "description": "Venue, equipment, stage prep", "progress": 0 },
+    "team5": { "name": "Finance", "description": "Budget, expenses, accounts", "progress": 0 },
+    "team6": { "name": "Sponsorship", "description": "Sponsor acquisition & relations", "progress": 0 },
+    "team7": { "name": "Media & Design", "description": "Posters, videos, branding", "progress": 0 },
+    "team8": { "name": "Technical", "description": "Technical events & judging", "progress": 0 }
+  },
+
+  "tasks": {},
+
+  "events": {},
+
+  "sponsors": {},
+
+  "logistics": {},
+
+  "communication": {
+    "whatsapp": {},
+    "telegram": {}
+  }
+}
