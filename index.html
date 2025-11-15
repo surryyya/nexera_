@@ -6,17 +6,14 @@
     <title>NEXERA2k25 - Symposium Dashboard</title>
     <link rel="stylesheet" href="style.css">
 
-    <!-- Firebase SDK scripts -->
     <script src="https://www.gstatic.com/firebasejs/10.0.0/firebase-app-compat.js"></script>
     <script src="https://www.gstatic.com/firebasejs/10.0.0/firebase-database-compat.js"></script>
     <script src="https://www.gstatic.com/firebasejs/10.0.0/firebase-auth-compat.js"></script>
 
-    <!-- Your Firebase Configuration -->
     <script src="firebase-config.js"></script>
 </head>
 
 <body>
-    <!-- Login Page -->
     <div id="loginPage" class="login-page">
         <div class="login-container">
             <div class="login-left">
@@ -61,7 +58,6 @@
         </div>
     </div>
 
-    <!-- Main Dashboard -->
     <div id="mainDashboard" class="dashboard" style="display: none;">
         <aside id="sidebar" class="sidebar">
             <div class="sidebar-header">
@@ -117,7 +113,6 @@
             </div>
         </aside>
 
-        <!-- Main Content -->
         <div class="main-content">
             <header class="header">
                 <div class="header-left">
@@ -154,11 +149,9 @@
                 </div>
             </header>
 
-            <!-- Page Content -->
             <div id="pageContent" class="page-content"></div>
         </div>
 
-        <!-- Notification Panel -->
         <div id="notificationPanel" class="notification-panel">
             <div class="notification-header">
                 <h3>Notifications</h3>
@@ -167,8 +160,73 @@
             <div id="notificationList" class="notification-list"></div>
         </div>
 
-        <!-- Modal Container -->
-        <div id="modalContainer"></div>
+        <div id="modalContainer">
+            <div class="modal-overlay" id="taskModalOverlay" style="display: none;">
+                <div class="modal">
+                    
+                    <div class="modal-header">
+                        <h3 class="modal-title" id="taskModalTitle">Create New Task</h3>
+                        <button class="modal-close" onclick="closeModal()">&times;</button>
+                    </div>
+                    
+                    <form id="taskForm">
+                        <div class="modal-body">
+                            <input type="hidden" id="taskIdInput">
+
+                            <div class="form-group">
+                                <label class="form-label">Task Title</label>
+                                <input type="text" id="taskTitleInput" class="form-control" required>
+                            </div>
+
+                            <div class="form-group">
+                                <label class="form-label">Description</label>
+                                <textarea id="taskDescInput" class="form-control" rows="3"></textarea>
+                            </div>
+
+                            <div class="grid-2" style="gap: var(--space-16);">
+                                <div class="form-group">
+                                    <label class="form-label">Assign to Team</label>
+                                    <select id="taskTeamInput" class="form-control" required></select>
+                                </div>
+                                <div class="form-group">
+                                    <label class="form-label">Assign to Member</label>
+                                    <select id="taskAssigneeInput" class="form-control" required></select>
+                                </div>
+                            </div>
+
+                            <div class="grid-3" style="gap: var(--space-16);">
+                                <div class="form-group">
+                                    <label class="form-label">Status</label>
+                                    <select id="taskStatusInput" class="form-control" required>
+                                        <option value="To Do">To Do</option>
+                                        <option value="In Progress">In Progress</option>
+                                        <option value="Done">Done</option>
+                                    </select>
+                                </div>
+                                <div class="form-group">
+                                    <label class="form-label">Priority</label>
+                                    <select id="taskPriorityInput" class="form-control" required>
+                                        <option value="Low">Low</option>
+                                        <option value="Medium">Medium</option>
+                                        <option value="High">High</option>
+                                    </select>
+                                </div>
+                                <div class="form-group">
+                                    <label class="form-label">Due Date</label>
+                                    <input type="date" id="taskDueDateInput" class="form-control" required>
+                                </div>
+                            </div>
+                        </div>
+                        
+                        <div class="modal-footer">
+                            <button type="button" class="btn btn--secondary" onclick="closeModal()">Cancel</button>
+                            <button type="submit" class="btn btn--primary">Save Task</button>
+                        </div>
+                    </form>
+
+                </div>
+            </div>
+        </div>
     </div>
 
     <script src="app.js"></script>

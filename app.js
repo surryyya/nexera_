@@ -29,7 +29,12 @@ function getObjectValues(obj = {}) {
 }
 
 function getUserById(uid) {
-  return dbData.users[uid] || { name: 'Unknown', email: '', role: 'volunteer', teamId: null };
+  // Add uid to the user object before returning
+  const user = dbData.users[uid];
+  if (user) {
+    user.uid = uid; // Ensure the uid is part of the object
+  }
+  return user || { uid: uid, name: 'Unknown', email: '', role: 'volunteer', teamId: null };
 }
 
 function getUserByEmail(email) {
@@ -43,9 +48,15 @@ function getTeamById(id) {
 
 function formatDate(dateStr) {
   if (!dateStr) return 'N/A';
+  // Check if dateStr is already in YYYY-MM-DD format, which input[type=date] produces
+  if (typeof dateStr === 'string' && dateStr.match(/^\d{4}-\d{2}-\d{2}$/)) {
+    const [year, month, day] = dateStr.split('-');
+    return `${day}/${month}/${year}`;
+  }
   const d = new Date(dateStr);
   if (isNaN(d)) return dateStr;
-  return d.toLocaleDateString();
+  // Fallback for other date formats (e.g., ISOString)
+  return d.toLocaleDateString('en-IN', { day: '2-digit', month: '2-digit', year: 'numeric' });
 }
 
 function isUrgent(dueDate) {
@@ -190,6 +201,8 @@ document.addEventListener('DOMContentLoaded', () => {
     if (user) {
       // User is signed in. Fetch their profile from the DB.
       const dbUid = user.uid;
+      
+      // <<< THIS LINE IS NOW FIXED (removed 'D) >>>
       const profileSnapshot = await db.ref('/users/' + dbUid).once('value');
 
       if (!profileSnapshot.exists()) {
@@ -227,6 +240,12 @@ document.addEventListener('DOMContentLoaded', () => {
       if (page) navigateToPage(page);
     });
   });
+
+  // <<< NEW: ADDED TASK FORM SUBMIT LISTENER >>>
+  const taskForm = document.getElementById('taskForm');
+  if (taskForm) {
+      taskForm.addEventListener('submit', handleTaskFormSubmit);
+  }
 });
 
 // ----------------- REAL-TIME DATA SYNC -----------------
@@ -235,7 +254,23 @@ function initializeRealTimeListeners() {
 
   nodes.forEach(node => {
     db.ref(node).on('value', (snapshot) => {
-      dbData[node] = snapshot.val() || {};
+      const data = snapshot.val() || {};
+      
+      // Add unique IDs to data (e.g., tasks, teams)
+      if (node === 'tasks' || node === 'teams' || node === 'events' || node === 'sponsors' || node === 'logistics') {
+        dbData[node] = Object.keys(data).reduce((acc, key) => {
+          acc[key] = { ...data[key], id: key };
+          return acc;
+        }, {});
+      } else if (node === 'users') {
+        dbData[node] = Object.keys(data).reduce((acc, key) => {
+          acc[key] = { ...data[key], uid: key }; // Use uid for users
+          return acc;
+        }, {});
+      } else {
+        dbData[node] = data;
+      }
+      
       // Update UI if user is logged in
       if (currentUser) refreshCurrentPage();
     });
@@ -418,7 +453,7 @@ function renderDashboard(container) {
                 <div class="task-title">${task.title}</div>
                 <div class="task-meta">
                   <span class="task-assignee">👤 ${getUserById(task.assigneeId).name}</span>
-                  <span class="status status--info">⚡ ${getTeamById(task.teamId).icon} ${getTeamById(task.teamId).name}</span>
+                  <span class="status status--info">⚡ ${getTeamById(task.teamId).icon || ''} ${getTeamById(task.teamId).name}</span>
                   <span class="task-due-date ${isUrgent(task.dueDate) ? 'urgent' : ''}">📅 ${formatDate(task.dueDate)}</span>
                 </div>
               </div>
@@ -436,7 +471,7 @@ function renderDashboard(container) {
             return `
               <div class="team-progress-item">
                 <div class="team-info">
-                  <span class="team-icon">${team.icon}</span>
+                  <span class="team-icon">${team.icon || '❓'}</span>
                   <span class="team-name">${team.name}</span>
                 </div>
                 <div class="progress-bar-container">
@@ -475,19 +510,19 @@ function renderTasks(container) {
       <div class="kanban-column">
         <div class="kanban-header todo"><span class="kanban-title">To Do</span><span class="kanban-count">${todoTasks.length}</span></div>
         <div class="kanban-cards">
-          ${todoTasks.length === 0 ? '<p class="kanban-empty">No tasks</p>' : todoTasks.map(task => renderKanbanCard(task)).join('')}
+          ${todoTasks.length === 0 ? '<p class="kanban-empty" style="text-align:center;color:var(--color-text-secondary);padding:var(--space-16);">No tasks</p>' : todoTasks.map(task => renderKanbanCard(task)).join('')}
         </div>
       </div>
       <div class="kanban-column">
         <div class="kanban-header inprogress"><span class="kanban-title">In Progress</span><span class="kanban-count">${inProgressTasks.length}</span></div>
         <div class="kanban-cards">
-          ${inProgressTasks.length === 0 ? '<p class="kanban-empty">No tasks</p>' : inProgressTasks.map(task => renderKanbanCard(task)).join('')}
+          ${inProgressTasks.length === 0 ? '<p class="kanban-empty" style="text-align:center;color:var(--color-text-secondary);padding:var(--space-16);">No tasks</p>' : inProgressTasks.map(task => renderKanbanCard(task)).join('')}
         </div>
       </div>
       <div class="kanban-column">
         <div class="kanban-header done"><span class="kanban-title">Done</span><span class="kanban-count">${doneTasks.length}</span></div>
         <div class="kanban-cards">
-          ${doneTasks.length === 0 ? '<p class="kanban-empty">No tasks</p>' : doneTasks.map(task => renderKanbanCard(task)).join('')}
+          ${doneTasks.length === 0 ? '<p class="kanban-empty" style="text-align:center;color:var(--color-text-secondary);padding:var(--space-16);">No tasks</p>' : doneTasks.map(task => renderKanbanCard(task)).join('')}
         </div>
       </div>
     </div>
@@ -501,7 +536,7 @@ function renderKanbanCard(task) {
     <div class="kanban-card" onclick="openTaskDetailModal('${task.id}')">
       <div class="kanban-card-title">${task.title}</div>
       <div class="kanban-card-description">${task.description || ''}</div>
-      ${currentUser.role === 'admin' ? `<div class="kanban-card-team">${team.icon} ${team.name}</div>` : ''}
+      ${currentUser.role === 'admin' ? `<div class="kanban-card-team" style="font-size:var(--font-size-sm);color:var(--color-text-secondary);margin-bottom:var(--space-8);">${team.icon || ''} ${team.name}</div>` : ''}
       <div class="kanban-card-footer">
         <span class="status status--${(task.priority || 'todo').toLowerCase()}">${task.priority || 'Todo'}</span>
         <span style="font-size:var(--font-size-sm);color:var(--color-text-secondary);">👤 ${assignee.name.split(' ')[0]}</span>
@@ -529,7 +564,7 @@ function renderTeams(container) {
         return `
           <div class="card">
             <div class="card__body">
-              <div style="font-size:48px;text-align:center;">${team.icon}</div>
+              <div style="font-size:48px;text-align:center;">${team.icon || '❓'}</div>
               <h3 style="text-align:center;">${team.name}</h3>
               <p style="text-align:center;color:var(--color-text-secondary);">Lead: ${lead.name}</p>
               <div class="progress-bar-container" style="margin:16px 0;">
@@ -699,11 +734,155 @@ function handleDelete(node, id, label) {
   }).catch(err => console.error('Delete error', err));
 }
 
-// Placeholder modals (implement real modals in your app)
-function openTaskModal() { alert('Open create/edit task modal (implement UI)'); }
+// ----------------- MODAL & FORM HANDLING (NEW) -----------------
+
+/**
+ * Closes any open modal
+ */
+function closeModal() {
+  const overlay = document.getElementById('taskModalOverlay');
+  if (overlay) overlay.style.display = 'none';
+  // Add more logic here to hide other modals (team, event)
+}
+
+/**
+ * Populates a <select> dropdown with options
+ * @param {string} elId - The ID of the <select> element
+ * @param {Array<Object>} items - Array of objects, e.g., [{ id: 't1', name: 'Team 1' }]
+ * @param {string} [selectedValue] - (Optional) The ID of the item to pre-select
+ */
+function populateSelect(elId, items, selectedValue = null) {
+  const selectEl = document.getElementById(elId);
+  if (!selectEl) return;
+  selectEl.innerHTML = ''; // Clear old options
+  
+  items.forEach(item => {
+    const option = document.createElement('option');
+    option.value = item.id;
+    option.textContent = item.name;
+    if (item.id === selectedValue) {
+      option.selected = true;
+    }
+    selectEl.appendChild(option);
+  });
+}
+
+/**
+ * Opens the Task Modal.
+ * If taskId is provided, it opens in "Edit Mode".
+ * If taskId is null, it opens in "Create Mode".
+ */
+function openTaskModal(taskId = null) {
+  const modalOverlay = document.getElementById('taskModalOverlay');
+  const modalTitle = document.getElementById('taskModalTitle');
+  const form = document.getElementById('taskForm');
+  
+  // Reset the form
+  form.reset();
+  document.getElementById('taskIdInput').value = '';
+
+  // --- Populate Dropdowns ---
+  
+  // 1. Populate Teams
+  const allTeams = getObjectValues(dbData.teams).map(t => ({ id: t.id, name: `${t.icon || '❓'} ${t.name}` }));
+  
+  // 2. Populate Users (Assignees)
+  const allUsers = getObjectValues(dbData.users);
+  
+  // Function to update assignees based on selected team
+  function updateAssignees(teamId, selectedAssigneeId = null) {
+    const teamMembers = allUsers
+      .filter(u => u.teamId === teamId || (u.role === 'admin' && !u.teamId)) // Team members + admins
+      .map(u => ({ id: u.uid, name: u.name }));
+    populateSelect('taskAssigneeInput', teamMembers, selectedAssigneeId);
+  }
+
+  // Listen for team changes to update the assignee list
+  document.getElementById('taskTeamInput').onchange = (e) => updateAssignees(e.target.value);
+  
+  // --- Set Mode (Create vs Edit) ---
+  if (taskId && dbData.tasks[taskId]) {
+    // EDIT MODE
+    const task = dbData.tasks[taskId];
+    modalTitle.textContent = 'Edit Task';
+    document.getElementById('taskIdInput').value = taskId;
+    document.getElementById('taskTitleInput').value = task.title || '';
+    document.getElementById('taskDescInput').value = task.description || '';
+    document.getElementById('taskStatusInput').value = task.status || 'To Do';
+    document.getElementById('taskPriorityInput').value = task.priority || 'Medium';
+    document.getElementById('taskDueDateInput').value = task.dueDate || '';
+    
+    // Set dropdowns and update assignees for the task's team
+    populateSelect('taskTeamInput', allTeams, task.teamId);
+    updateAssignees(task.teamId, task.assigneeId); // Load members for this team and select assignee
+    
+  } else {
+    // CREATE MODE
+    modalTitle.textContent = 'Create New Task';
+    // Set default due date to tomorrow
+    const tomorrow = new Date();
+    tomorrow.setDate(tomorrow.getDate() + 1);
+    document.getElementById('taskDueDateInput').value = tomorrow.toISOString().split('T')[0];
+    
+    // Set default team and assignees
+    let defaultTeamId = currentUser.teamId || allTeams[0]?.id;
+    populateSelect('taskTeamInput', allTeams, defaultTeamId);
+    updateAssignees(defaultTeamId);
+  }
+
+  // Show the modal
+  modalOverlay.style.display = 'flex';
+}
+
+/**
+ * Saves the task data from the form to Firebase
+ */
+async function handleTaskFormSubmit(event) {
+  event.preventDefault(); // Stop the form from reloading the page
+  
+  // Get the ID from the hidden input.
+  const taskId = document.getElementById('taskIdInput').value;
+  
+  // Collect data from the form
+  const taskData = {
+    title: document.getElementById('taskTitleInput').value,
+    description: document.getElementById('taskDescInput').value,
+    teamId: document.getElementById('taskTeamInput').value,
+    assigneeId: document.getElementById('taskAssigneeInput').value,
+    status: document.getElementById('taskStatusInput').value,
+    priority: document.getElementById('taskPriorityInput').value,
+    dueDate: document.getElementById('taskDueDateInput').value,
+  };
+
+  try {
+    if (taskId) {
+      // This is an EDIT, so we update the existing task
+      console.log(`Updating task ${taskId}`);
+      await db.ref(`tasks/${taskId}`).update(taskData);
+    } else {
+      // This is a NEW task, so we push it
+      console.log('Creating new task');
+      // Add creation date for new tasks
+      taskData.createdAt = new Date().toISOString();
+      taskData.creatorId = currentUser.uid; // Track who created it
+      await db.ref('tasks').push(taskData);
+    }
+    
+    closeModal(); // Close the modal on success
+  } catch (err) {
+    console.error("Error saving task:", err);
+    alert("Error saving task. Check the console for details.");
+  }
+}
+
+// --- Other placeholder functions (you can build these next!) ---
 function openEventModal(id = null) { alert('Open event modal (implement UI)'); }
 function openTeamModal() { alert('Open team modal (implement UI)'); }
 function openSponsorModal() { alert('Open sponsor modal (implement UI)'); }
-function openTaskDetailModal(id) { alert(`Open task detail for ${id} (implement UI)`); }
+function openTaskDetailModal(id) { 
+  console.log(`Opening detail for task ${id}. For now, opening edit modal.`);
+  // Re-use the edit modal
+  openTaskModal(id);
+}
 
 // ----------------- END OF FILE -----------------
