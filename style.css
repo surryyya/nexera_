@@ -1565,3 +1565,28 @@ a:hover {
     min-height: 200px;
   }
 }
+
+/* --- NEW: Progress Slider Styles --- */
+input[type="range"].form-control {
+  padding: 0;
+  border: none;
+  background: transparent;
+  box-shadow: none;
+  cursor: pointer;
+}
+
+/* --- NEW: Mini Progress Bar for Kanban Cards --- */
+.card-progress-container {
+  height: 6px;
+  background: var(--color-border-subtle);
+  border-radius: var(--radius-full);
+  overflow: hidden;
+  margin-top: var(--space-12);
+}
+
+.card-progress-bar {
+  height: 100%;
+  background: var(--color-primary);
+  border-radius: var(--radius-full);
+  transition: width 0.5s var(--ease-apple);
+}

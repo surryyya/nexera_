@@ -175,6 +175,7 @@
                                 <label class="form-label">Description</label>
                                 <textarea id="taskDescInput" class="form-control" rows="3"></textarea>
                             </div>
+                    
                             <div class="grid-2" style="gap: var(--space-16);">
                                 <div class="form-group">
                                     <label class="form-label">Assign to Team</label>
@@ -185,7 +186,8 @@
                                     <select id="taskAssigneeInput" class="form-control" required></select>
                                 </div>
                             </div>
-                            <div class="grid-3" style="gap: var(--space-16);">
+                    
+                            <div class="grid-2" style="gap: var(--space-16);">
                                 <div class="form-group">
                                     <label class="form-label">Status</label>
                                     <select id="taskStatusInput" class="form-control" required>
@@ -202,15 +204,23 @@
                                         <option value="High">High</option>
                                     </select>
                                 </div>
-                                <div class="form-group">
-                                    <label class="form-label">Due Date</label>
-                                    <input type="date" id="taskDueDateInput" class="form-control" required>
+                            </div>
+                            
+                            <div class="form-group" id="taskProgressContainer" style="display: none;">
+                                <div style="display: flex; justify-content: space-between; align-items: center; margin-bottom: 8px;">
+                                    <label class="form-label" style="margin-bottom: 0;">Progress</label>
+                                    <span id="taskProgressLabel" style="font-size: var(--font-size-sm); font-weight: 500; color: var(--color-primary);">50%</span>
                                 </div>
+                                <input type="range" id="taskProgressInput" class="form-control" min="0" max="100" step="5">
+                            </div>
+                            <div class="form-group" style="margin-bottom: 0;">
+                                <label class="form-label">Due Date</label>
+                                <input type="date" id="taskDueDateInput" class="form-control" required>
                             </div>
                         </div>
                         <div class="modal-footer">
                             <button type="button" class="btn btn--secondary" onclick="closeModal()">Cancel</button>
-                            <button type="submit" class="btn btn--primary">Save Task</button>
+                            <button type="submit" class="btn btn--primary" id="saveTaskBtn">Save Task</button>
                         </div>
                     </form>
                 </div>
@@ -269,16 +279,28 @@
                                 <label class="form-label">Sponsor Name</label>
                                 <input type="text" id="sponsorNameInput" class="form-control" required>
                             </div>
-                             <div class="form-group">
-                                <label class="form-label">Sponsorship Tier</label>
-                                <select id="sponsorTierInput" class="form-control" required>
-                                    <option value="Title Sponsor">Title Sponsor</option>
-                                    <option value="Gold Sponsor">Gold Sponsor</option>
-                                    <option value="Silver Sponsor">Silver Sponsor</option>
-                                    <option value="Bronze Sponsor">Bronze Sponsor</option>
-                                    <option value="General">General</option>
-                                </select>
+                             
+                            <div class="grid-2" style="gap: var(--space-16);">
+                                <div class="form-group">
+                                    <label class="form-label">Sponsorship Tier</label>
+                                    <select id="sponsorTierInput" class="form-control" required>
+                                        <option value="Title Sponsor">Title Sponsor</option>
+                                        <option value="Gold Sponsor">Gold Sponsor</option>
+                                        <option value="Silver Sponsor">Silver Sponsor</option>
+                                        <option value="Bronze Sponsor">Bronze Sponsor</option>
+                                        <option value="General">General</option>
+                                    </select>
+                                </div>
+                                <div class="form-group">
+                                    <label class="form-label">Amount (₹)</label>
+                                    <input type="number" id="sponsorAmountInput" class="form-control" placeholder="e.g., 50000">
+                                </div>
                             </div>
+                            <div class="form-group">
+                                <label class="form-label">Description / Notes</label>
+                                <textarea id="sponsorDescInput" class="form-control" rows="3" placeholder="e.g., Contact person, benefits given..."></textarea>
+                            </div>
+
                         </div>
                         <div class="modal-footer">
                             <button type="button" class="btn btn--secondary" onclick="closeModal()">Cancel</button>

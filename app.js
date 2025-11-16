@@ -15,7 +15,7 @@ let dbData = {
   tasks: {},
   events: {},
   sponsors: {},
-  announcements: {} // Added
+  announcements: {}
 };
 
 // ----------------- UTIL HELPERS -----------------
@@ -66,15 +66,17 @@ function isUrgent(dueDate) {
 
 function calculateProgress(tasks) {
   if (!tasks || tasks.length === 0) return 0;
-  const done = tasks.filter(t => t.status === 'Done').length;
-  return Math.round((done / tasks.length) * 100);
+  // Use the new 'progress' field for a more accurate overall progress
+  const totalProgress = tasks.reduce((sum, task) => {
+    if (task.status === 'Done') return sum + 100;
+    return sum + (task.progress || 0);
+  }, 0);
+  return Math.round(totalProgress / tasks.length);
 }
 
 function calculateTeamProgress(teamId) {
   const tasks = getObjectValues(dbData.tasks).filter(t => t.teamId === teamId);
-  if (tasks.length === 0) return 0;
-  const done = tasks.filter(t => t.status === 'Done').length;
-  return Math.round((done / tasks.length) * 100);
+  return calculateProgress(tasks); // Re-use the main progress function
 }
 
 // ---------------- FIREBASE AUTH (MAIN) ----------------
@@ -218,11 +220,11 @@ document.addEventListener('DOMContentLoaded', () => {
   if (sponsorForm) {
       sponsorForm.addEventListener('submit', handleSponsorFormSubmit);
   }
-  const teamForm = document.getElementById('teamForm'); // Added
+  const teamForm = document.getElementById('teamForm');
   if (teamForm) {
       teamForm.addEventListener('submit', handleTeamFormSubmit);
   }
-  const announcementForm = document.getElementById('announcementForm'); // Added
+  const announcementForm = document.getElementById('announcementForm');
   if (announcementForm) {
       announcementForm.addEventListener('submit', handleAnnouncementFormSubmit);
   }
@@ -230,13 +232,12 @@ document.addEventListener('DOMContentLoaded', () => {
 
 // ----------------- REAL-TIME DATA SYNC -----------------
 function initializeRealTimeListeners() {
-  const nodes = ['users', 'teams', 'tasks', 'events', 'sponsors', 'announcements']; // Added 'announcements', removed 'logistics'
+  const nodes = ['users', 'teams', 'tasks', 'events', 'sponsors', 'announcements'];
 
   nodes.forEach(node => {
     db.ref(node).on('value', (snapshot) => {
       const data = snapshot.val() || {};
       
-      // Add unique IDs to data
       const dataWithIds = Object.keys(data).reduce((acc, key) => {
         const idKey = (node === 'users') ? 'uid' : 'id';
         acc[key] = { ...data[key], [idKey]: key };
@@ -273,12 +274,12 @@ const Permissions = {
   canManageSponsors: () => {
     if (!currentUser) return false;
     if (currentUser.role === 'admin') return true;
-    // Assuming 'team5' is Sponsorship team
-    if (currentUser.role === 'team_lead' && currentUser.teamId === 'team5') return true;
+    // Assuming 'team7' is Sponsorship team from your JSON
+    if (currentUser.role === 'team_lead' && currentUser.teamId === 'team7') return true;
     return false;
   },
   canManageEvents: () => currentUser && currentUser.role === 'admin',
-  canManageAnnouncements: () => currentUser && currentUser.role === 'admin', // Added
+  canManageAnnouncements: () => currentUser && currentUser.role === 'admin',
   canViewPage: (page) => {
     if (!currentUser) return false;
     if (page === 'analytics' && currentUser.role === 'volunteer') return false;
@@ -326,8 +327,8 @@ function navigateToPage(page, isRefresh = false) {
       case 'events': renderEvents(pageContent); break;
       case 'tasks': renderTasks(pageContent); break;
       case 'sponsors': renderSponsors(pageContent); break;
-      case 'announcements': renderAnnouncements(pageContent); break; // Updated
-      case 'analytics': renderAnalytics(pageContent); break; // Updated
+      case 'announcements': renderAnnouncements(pageContent); break;
+      case 'analytics': renderAnalytics(pageContent); break;
       default:
         pageContent.innerHTML = `<h2>Page not found: ${page}</h2>`;
     }
@@ -483,15 +484,29 @@ function renderTasks(container) {
   `;
 }
 
+// REPLACE your old renderKanbanCard function with this one
 function renderKanbanCard(task) {
   const assignee = getUserById(task.assigneeId);
   const team = getTeamById(task.teamId);
+  
+  // --- NEW: Check for progress bar ---
+  const progressBarHtml = (task.status === 'In Progress' && task.progress > 0)
+    ? `
+      <div class="card-progress-container">
+        <div class="card-progress-bar" style="width: ${task.progress}%"></div>
+      </div>
+    `
+    : '';
+
   return `
     <div class="kanban-card" onclick="openTaskDetailModal('${task.id}')">
       <div class="kanban-card-title">${task.title}</div>
       <div class="kanban-card-description">${task.description || ''}</div>
       ${currentUser.role === 'admin' ? `<div class="kanban-card-team" style="font-size:var(--font-size-sm);color:var(--color-text-secondary);margin-bottom:var(--space-8);">${team.icon || ''} ${team.name}</div>` : ''}
-      <div class="kanban-card-footer">
+      
+      ${progressBarHtml} 
+
+      <div class="kanban-card-footer" style="${progressBarHtml ? 'margin-top: 12px;' : ''}">
         <span class="status status--${(task.priority || 'todo').toLowerCase()}">${task.priority || 'Todo'}</span>
         <span style="font-size:var(--font-size-sm);color:var(--color-text-secondary);">👤 ${assignee.name.split(' ')[0]}</span>
       </div>
@@ -585,7 +600,7 @@ function renderEvents(container) {
   `;
 }
 
-// ---------- RENDER: Sponsors ----------
+// ---------- RENDER: Sponsors (Updated) ----------
 function renderSponsors(container) {
   const sponsors = getObjectValues(dbData.sponsors);
   container.innerHTML = `
@@ -601,7 +616,18 @@ function renderSponsors(container) {
           <div class="card">
             <div class="card__body">
               <h3>${s.name}</h3>
-              <p class="status status--info">${s.tier || 'General'}</p>
+              <p class="status status--info" style="margin-bottom: 12px; display: inline-block;">${s.tier || 'General'}</p>
+              
+              ${s.amount ? `
+                <h4 style="font-size: var(--font-size-xl); color: var(--color-success); margin-bottom: 12px; font-weight: 600;">
+                  ₹${parseInt(s.amount).toLocaleString('en-IN')}
+                </h4>
+              ` : ''}
+              ${s.description ? `
+                <p style="font-size: var(--font-size-sm); color: var(--color-text-secondary); margin-bottom: 16px; white-space: pre-wrap;">
+                  ${s.description}
+                </p>
+              ` : ''}
               <div style="margin-top:12px; display: flex; gap: 8px;">
                 ${Permissions.canManageSponsors() ? `
                   <button class="btn btn--sm btn--secondary" onclick="openSponsorModal('${s.id}')">Edit</button>
@@ -616,7 +642,7 @@ function renderSponsors(container) {
   `;
 }
 
-// ---------- RENDER: Announcements (NEW) ----------
+// ---------- RENDER: Announcements ----------
 function renderAnnouncements(container) {
   const announcements = getObjectValues(dbData.announcements).sort((a, b) => new Date(b.timestamp) - new Date(a.timestamp)); // Newest first
   
@@ -648,7 +674,7 @@ function renderAnnouncements(container) {
   `;
 }
 
-// ---------- RENDER: Analytics (NEW) ----------
+// ---------- RENDER: Analytics ----------
 function renderAnalytics(container) {
   const allTasks = getObjectValues(dbData.tasks);
   const doneTasks = allTasks.filter(t => t.status === 'Done').length;
@@ -675,7 +701,7 @@ function renderAnalytics(container) {
         <div class="stat-info">
           <div class="stat-label">Overall Progress</div>
           <div class="stat-value">${progress}%</div>
-          <div class="stat-change">${doneTasks} / ${allTasks.length} done</div>
+          <div class="stat-change">${doneTasks} / ${allTasks.length} tasks</div>
         </div>
       </div>
       <div class="stat-card">
@@ -766,7 +792,7 @@ function handleDelete(node, id, label) {
   }).catch(err => console.error('Delete error', err));
 }
 
-// ----------------- MODAL & FORM HANDLING (NEW) -----------------
+// ----------------- MODAL & FORM HANDLING -----------------
 
 function closeModal() {
   document.querySelectorAll('.modal-overlay').forEach(modal => {
@@ -789,13 +815,32 @@ function populateSelect(elId, items, selectedValue = null) {
   });
 }
 
-// --- TASK MODAL ---
+// --- TASK MODAL (Updated) ---
 function openTaskModal(taskId = null) {
   const modalOverlay = document.getElementById('taskModalOverlay');
   const modalTitle = document.getElementById('taskModalTitle');
   const form = document.getElementById('taskForm');
+  
   form.reset();
   document.getElementById('taskIdInput').value = '';
+
+  // --- Get progress slider elements ---
+  const progressContainer = document.getElementById('taskProgressContainer');
+  const progressSlider = document.getElementById('taskProgressInput');
+  const progressLabel = document.getElementById('taskProgressLabel');
+
+  // --- Add event listeners for slider and status ---
+  progressSlider.oninput = (e) => {
+    progressLabel.textContent = e.target.value + '%';
+  };
+  
+  document.getElementById('taskStatusInput').onchange = (e) => {
+    if (e.target.value === 'In Progress') {
+      progressContainer.style.display = 'block';
+    } else {
+      progressContainer.style.display = 'none';
+    }
+  };
 
   const allTeams = getObjectValues(dbData.teams).map(t => ({ id: t.id, name: `${t.icon || '❓'} ${t.name}` }));
   const allUsers = getObjectValues(dbData.users);
@@ -819,8 +864,16 @@ function openTaskModal(taskId = null) {
     document.getElementById('taskStatusInput').value = task.status || 'To Do';
     document.getElementById('taskPriorityInput').value = task.priority || 'Medium';
     document.getElementById('taskDueDateInput').value = task.dueDate || '';
+    
     populateSelect('taskTeamInput', allTeams, task.teamId);
     updateAssignees(task.teamId, task.assigneeId);
+
+    // --- NEW: Set slider value and visibility ---
+    const currentProgress = task.progress || 0;
+    progressSlider.value = currentProgress;
+    progressLabel.textContent = currentProgress + '%';
+    progressContainer.style.display = (task.status === 'In Progress') ? 'block' : 'none';
+    
   } else {
     // CREATE MODE
     modalTitle.textContent = 'Create New Task';
@@ -830,34 +883,63 @@ function openTaskModal(taskId = null) {
     let defaultTeamId = currentUser.teamId || allTeams[0]?.id;
     populateSelect('taskTeamInput', allTeams, defaultTeamId);
     updateAssignees(defaultTeamId);
+    
+    // --- NEW: Reset slider ---
+    progressSlider.value = 0;
+    progressLabel.textContent = '0%';
+    progressContainer.style.display = 'none';
   }
   modalOverlay.style.display = 'flex';
 }
 
 async function handleTaskFormSubmit(event) {
   event.preventDefault();
+  const saveBtn = document.getElementById('saveTaskBtn');
+  saveBtn.disabled = true;
+  saveBtn.textContent = 'Saving...';
+  
   const taskId = document.getElementById('taskIdInput').value;
+  const status = document.getElementById('taskStatusInput').value;
+
+  // 1. Collect all text-based data
   const taskData = {
     title: document.getElementById('taskTitleInput').value,
     description: document.getElementById('taskDescInput').value,
     teamId: document.getElementById('taskTeamInput').value,
     assigneeId: document.getElementById('taskAssigneeInput').value,
-    status: document.getElementById('taskStatusInput').value,
+    status: status,
     priority: document.getElementById('taskPriorityInput').value,
     dueDate: document.getElementById('taskDueDateInput').value,
   };
+
+  // --- NEW: Add progress based on status ---
+  if (status === 'Done') {
+    taskData.progress = 100;
+  } else if (status === 'In Progress') {
+    taskData.progress = parseInt(document.getElementById('taskProgressInput').value, 10);
+  } else {
+    taskData.progress = 0;
+  }
+
   try {
+    // 3. Save the task data to Realtime Database
     if (taskId) {
+      console.log(`Updating task ${taskId}`);
       await db.ref(`tasks/${taskId}`).update(taskData);
     } else {
+      console.log('Creating new task');
       taskData.createdAt = new Date().toISOString();
       taskData.creatorId = currentUser.uid;
       await db.ref('tasks').push(taskData);
     }
-    closeModal();
+    
+    closeModal(); // Close the modal on success
   } catch (err) {
     console.error("Error saving task:", err);
     alert("Error saving task.");
+  } finally {
+    saveBtn.disabled = false;
+    saveBtn.textContent = 'Save Task';
   }
 }
 
@@ -911,11 +993,12 @@ async function handleEventFormSubmit(event) {
   }
 }
 
-// --- SPONSOR MODAL ---
+// --- SPONSOR MODAL (Updated) ---
 function openSponsorModal(sponsorId = null) {
   const modalOverlay = document.getElementById('sponsorModalOverlay');
   const modalTitle = document.getElementById('sponsorModalTitle');
   const form = document.getElementById('sponsorForm');
+
   form.reset();
   document.getElementById('sponsorIdInput').value = '';
 
@@ -926,24 +1009,33 @@ function openSponsorModal(sponsorId = null) {
     document.getElementById('sponsorIdInput').value = sponsorId;
     document.getElementById('sponsorNameInput').value = sponsor.name || '';
     document.getElementById('sponsorTierInput').value = sponsor.tier || 'General';
+    document.getElementById('sponsorAmountInput').value = sponsor.amount || ''; // ADDED
+    document.getElementById('sponsorDescInput').value = sponsor.description || ''; // ADDED
   } else {
     // CREATE MODE
     modalTitle.textContent = 'Add New Sponsor';
   }
+
   modalOverlay.style.display = 'flex';
 }
 
 async function handleSponsorFormSubmit(event) {
   event.preventDefault();
   const sponsorId = document.getElementById('sponsorIdInput').value;
+  
   const sponsorData = {
     name: document.getElementById('sponsorNameInput').value,
     tier: document.getElementById('sponsorTierInput').value,
+    amount: document.getElementById('sponsorAmountInput').value, // ADDED
+    description: document.getElementById('sponsorDescInput').value, // ADDED
   };
+
   try {
     if (sponsorId) {
+      console.log(`Updating sponsor ${sponsorId}`);
       await db.ref(`sponsors/${sponsorId}`).update(sponsorData);
     } else {
+      console.log('Creating new sponsor');
       await db.ref('sponsors').push(sponsorData);
     }
     closeModal();
@@ -953,7 +1045,7 @@ async function handleSponsorFormSubmit(event) {
   }
 }
 
-// --- TEAM MODAL (NEW) ---
+// --- TEAM MODAL ---
 function openTeamModal(teamId = null) {
   const modalOverlay = document.getElementById('teamModalOverlay');
   const modalTitle = document.getElementById('teamModalTitle');
@@ -971,7 +1063,6 @@ function openTeamModal(teamId = null) {
   } else {
     // CREATE MODE
      modalTitle.textContent = 'Add New Team';
-     // Note: Creating a team here won't assign a lead. This must be done in the DB.
   }
   modalOverlay.style.display = 'flex';
 }
@@ -985,10 +1076,8 @@ async function handleTeamFormSubmit(event) {
   };
   try {
     if (teamId) {
-      // We are only updating name and icon
       await db.ref(`teams/${teamId}`).update(teamData);
     } else {
-      // Create new team
       await db.ref('teams').push(teamData);
     }
     closeModal();
@@ -998,7 +1087,7 @@ async function handleTeamFormSubmit(event) {
   }
 }
 
-// --- ANNOUNCEMENT MODAL (NEW) ---
+// --- ANNOUNCEMENT MODAL ---
 function openAnnouncementModal() {
   const modalOverlay = document.getElementById('announcementModalOverlay');
   document.getElementById('announcementForm').reset();
