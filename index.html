@@ -6,6 +6,8 @@
     <title>NEXERA2k25 - Symposium Dashboard</title>
     <link rel="stylesheet" href="style.css">
 
+    <link rel="stylesheet" href="https://fonts.googleapis.com/css2?family=Material+Symbols+Outlined" />
+
     <script src="https://www.gstatic.com/firebasejs/10.0.0/firebase-app-compat.js"></script>
     <script src="https://www.gstatic.com/firebasejs/10.0.0/firebase-database-compat.js"></script>
     <script src="https://www.gstatic.com/firebasejs/10.0.0/firebase-auth-compat.js"></script>
@@ -67,33 +69,34 @@
                 </div>
                 <button id="sidebarToggle" class="sidebar-toggle">☰</button>
             </div>
+            
             <nav class="sidebar-nav">
                 <a href="#" class="nav-item active" data-page="dashboard">
-                    <span class="nav-icon">🏠</span>
+                    <span class="nav-icon material-symbols-outlined">home</span>
                     <span class="nav-text">Dashboard</span>
                 </a>
                 <a href="#" class="nav-item" data-page="teams">
-                    <span class="nav-icon">👥</span>
+                    <span class="nav-icon material-symbols-outlined">group</span>
                     <span class="nav-text">Teams</span>
                 </a>
                 <a href="#" class="nav-item" data-page="events">
-                    <span class="nav-icon">📅</span>
+                    <span class="nav-icon material-symbols-outlined">event</span>
                     <span class="nav-text">Events</span>
                 </a>
                 <a href="#" class="nav-item" data-page="tasks">
-                    <span class="nav-icon">✓</span>
+                    <span class="nav-icon material-symbols-outlined">task_alt</span>
                     <span class="nav-text">Tasks</span>
                 </a>
                 <a href="#" class="nav-item" data-page="sponsors">
-                    <span class="nav-icon">💰</span>
+                    <span class="nav-icon material-symbols-outlined">monetization_on</span>
                     <span class="nav-text">Sponsors</span>
                 </a>
                 <a href="#" class="nav-item" data-page="announcements">
-                    <span class="nav-icon">💬</span>
+                    <span class="nav-icon material-symbols-outlined">campaign</span>
                     <span class="nav-text">Announcements</span>
                 </a>
                 <a href="#" class="nav-item" data-page="analytics">
-                    <span class="nav-icon">📊</span>
+                    <span class="nav-icon material-symbols-outlined">bar_chart</span>
                     <span class="nav-text">Analytics</span>
                 </a>
             </nav>
@@ -213,6 +216,7 @@
                                 </div>
                                 <input type="range" id="taskProgressInput" class="form-control" min="0" max="100" step="5">
                             </div>
+                    
                             <div class="form-group" style="margin-bottom: 0;">
                                 <label class="form-label">Due Date</label>
                                 <input type="date" id="taskDueDateInput" class="form-control" required>
@@ -325,7 +329,7 @@
                             </div>
                              <div class="form-group">
                                 <label class="form-label">Team Icon</label>
-                                <input type="text" id="teamIconInput" class="form-control" placeholder="Enter an emoji, e.g., 💻" required>
+                                <input type="text" id="teamIconInput" class="form-control" placeholder="e.g., code" required>
                             </div>
                         </div>
                         <div class="modal-footer">

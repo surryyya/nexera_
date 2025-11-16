@@ -515,7 +515,8 @@ function renderKanbanCard(task) {
   `;
 }
 
-// ---------- RENDER: Teams ----------
+// ---------- RENDER: Teams (Updated) ----------
+// REPLACE your old renderTeams function with this one
 function renderTeams(container) {
   container.innerHTML = `
     <div style="display:flex;justify-content:space-between;align-items:center;margin-bottom:var(--space-24);">
@@ -530,10 +531,13 @@ function renderTeams(container) {
         const todoCount = teamTasks.filter(t => t.status === 'To Do').length;
         const doneCount = teamTasks.filter(t => t.status === 'Done').length;
 
+        // UPDATED LINE: This now creates a <span> tag instead of just printing the emoji
+        const iconHtml = `<span class="material-symbols-outlined">${team.icon || 'group'}</span>`;
+
         return `
           <div class="card">
             <div class="card__body">
-              <div style="font-size:48px;text-align:center;">${team.icon || '❓'}</div>
+              <div style="font-size:48px;text-align:center; color: var(--color-primary);">${iconHtml}</div>
               <h3 style="text-align:center;">${team.name}</h3>
               <p style="text-align:center;color:var(--color-text-secondary);">Lead: ${lead.name}</p>
               <div class="progress-bar-container" style="margin:16px 0;">
@@ -816,6 +820,7 @@ function populateSelect(elId, items, selectedValue = null) {
 }
 
 // --- TASK MODAL (Updated) ---
+// REPLACE your old openTaskModal function with this one
 function openTaskModal(taskId = null) {
   const modalOverlay = document.getElementById('taskModalOverlay');
   const modalTitle = document.getElementById('taskModalTitle');
@@ -892,6 +897,7 @@ function openTaskModal(taskId = null) {
   modalOverlay.style.display = 'flex';
 }
 
+// REPLACE your old handleTaskFormSubmit function with this one
 async function handleTaskFormSubmit(event) {
   event.preventDefault();
   const saveBtn = document.getElementById('saveTaskBtn');
@@ -994,6 +1000,7 @@ async function handleEventFormSubmit(event) {
 }
 
 // --- SPONSOR MODAL (Updated) ---
+// REPLACE your old openSponsorModal function with this one
 function openSponsorModal(sponsorId = null) {
   const modalOverlay = document.getElementById('sponsorModalOverlay');
   const modalTitle = document.getElementById('sponsorModalTitle');
@@ -1019,6 +1026,7 @@ function openSponsorModal(sponsorId = null) {
   modalOverlay.style.display = 'flex';
 }
 
+// REPLACE your old handleSponsorFormSubmit function with this one
 async function handleSponsorFormSubmit(event) {
   event.preventDefault();
   const sponsorId = document.getElementById('sponsorIdInput').value;
