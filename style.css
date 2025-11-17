@@ -1,1137 +1,1592 @@
-// app.js - Firebase Authentication version
-
-// ---------------- CONFIG ----------------
-const SYMPOSIUM_DATE = new Date('2026-02-26T10:00:00'); // adjust as needed
-const COLLEGE_DOMAIN = '@cit.edu.in';
-
-// ---------------- STATE ----------------
-let currentUser = null; // { uid: dbKey, name, email, role, teamId }
-let currentPage = 'dashboard';
-let notifications = [];
-
-let dbData = {
-  users: {},
-  teams: {},
-  tasks: {},
-  events: {},
-  sponsors: {},
-  announcements: {}
-};
-
-// ----------------- UTIL HELPERS -----------------
-function getObjectValues(obj = {}) {
-  try {
-    return Object.values(obj);
-  } catch (e) {
-    return [];
-  }
-}
-
-function getUserById(uid) {
-  const user = dbData.users[uid];
-  if (user) {
-    user.uid = uid; // Ensure the uid is part of the object
-  }
-  return user || { uid: uid, name: 'Unknown', email: '', role: 'volunteer', teamId: null };
-}
-
-function getTeamById(id) {
-  return dbData.teams[id] || { id, name: 'Unknown', icon: '❓' };
-}
-
-function formatDate(dateStr, includeTime = false) {
-  if (!dateStr) return 'N/A';
-  // Check for YYYY-MM-DD format
-  if (typeof dateStr === 'string' && dateStr.match(/^\d{4}-\d{2}-\d{2}$/)) {
-    const [year, month, day] = dateStr.split('-');
-    return `${day}/${month}/${year}`;
-  }
-  const d = new Date(dateStr);
-  if (isNaN(d)) return dateStr;
+:root {
+  /* Primitive Color Tokens */
+  --color-white: rgba(255, 255, 255, 1);
+  --color-black: rgba(0, 0, 0, 1);
+  --color-gray-200: rgba(245, 245, 245, 1);
+  --color-gray-300: rgba(167, 169, 169, 1);
+  --color-gray-400: rgba(119, 124, 124, 1);
+  --color-slate-500: rgba(98, 108, 113, 1);
+  --color-slate-900: rgba(19, 52, 59, 1);
+  --color-red-400: rgba(255, 84, 89, 1);
+  --color-red-500: rgba(192, 21, 47, 1);
+  --color-orange-400: rgba(230, 129, 97, 1);
+  --color-orange-500: rgba(168, 75, 47, 1);
+  --color-teal-500: rgba(33, 128, 141, 1);
   
-  const options = { day: '2-digit', month: '2-digit', year: 'numeric' };
-  if (includeTime) {
-    options.hour = '2-digit';
-    options.minute = '2-digit';
-    options.hour12 = true;
-  }
-  return d.toLocaleDateString('en-IN', options);
-}
+  /* Symphony Brand Colors */
+  --color-primary-purple: #6366F1;
+  --color-primary-indigo: #4F46E5;
+  --color-accent-cyan: #06B6D4;
+  --color-accent-teal: #14B8A6;
 
-function isUrgent(dueDate) {
-  if (!dueDate) return false;
-  const diff = new Date(dueDate) - new Date();
-  return diff <= 1000 * 60 * 60 * 24 * 3; // within 3 days
-}
+  /* Background color tokens (Light Mode) */
+  --color-bg-1: rgba(99, 102, 241, 0.08);
+  --color-bg-2: rgba(245, 158, 11, 0.08);
+  --color-bg-3: rgba(34, 197, 94, 0.08);
+  --color-bg-4: rgba(239, 68, 68, 0.08);
+  --color-bg-5: rgba(147, 51, 234, 0.08);
+  --color-bg-6: rgba(249, 115, 22, 0.08);
+  --color-bg-7: rgba(236, 72, 153, 0.08);
+  --color-bg-8: rgba(6, 182, 212, 0.08);
 
-function calculateProgress(tasks) {
-  if (!tasks || tasks.length === 0) return 0;
-  // Use the new 'progress' field for a more accurate overall progress
-  const totalProgress = tasks.reduce((sum, task) => {
-    if (task.status === 'Done') return sum + 100;
-    return sum + (task.progress || 0);
-  }, 0);
-  return Math.round(totalProgress / tasks.length);
-}
-
-function calculateTeamProgress(teamId) {
-  const tasks = getObjectValues(dbData.tasks).filter(t => t.teamId === teamId);
-  return calculateProgress(tasks); // Re-use the main progress function
-}
-
-// ---------------- FIREBASE AUTH (MAIN) ----------------
-
-function showLoginPage() {
-  currentUser = null;
-  db.ref().off(); // detach listeners
-  document.getElementById('mainDashboard').style.display = 'none';
-  document.getElementById('loginPage').style.display = 'flex';
-}
-
-function showDashboardAfterLogin() {
-  initializeRealTimeListeners();
-  document.getElementById('loginPage').style.display = 'none';
-  document.getElementById('mainDashboard').style.display = 'flex';
-  updateUserProfileUI();
-  startCountdown();
-  navigateToPage('dashboard');
-}
-
-async function handleLogin(event) {
-  if (event && event.preventDefault) event.preventDefault();
-  const emailEl = document.getElementById('emailInput');
-  const passwordEl = document.getElementById('passwordInput');
-  const loginButton = document.getElementById('loginButton');
-  const loginErrorMsg = document.getElementById('loginErrorMessage');
-  const email = emailEl ? emailEl.value.trim() : '';
-  const password = passwordEl ? passwordEl.value : '';
-  loginErrorMsg.textContent = '';
-  loginErrorMsg.classList.remove('show');
-  if (!email) {
-    loginErrorMsg.textContent = 'Please enter your email.';
-    loginErrorMsg.classList.add('show');
-    return;
-  }
-  if (!password) {
-    loginErrorMsg.textContent = 'Please enter your password.';
-    loginErrorMsg.classList.add('show');
-    return;
-  }
-  loginButton.textContent = 'Signing In...';
-  loginButton.disabled = true;
-  try {
-    const userCredential = await auth.signInWithEmailAndPassword(email, password);
-    const dbUid = userCredential.user.uid;
-    const profileSnapshot = await db.ref('/users/' + dbUid).once('value');
-    if (!profileSnapshot.exists()) {
-        throw new Error("Auth successful, but no user profile in database.");
-    }
-    const profile = profileSnapshot.val();
-    currentUser = {
-      uid: dbUid,
-      email: profile.email,
-      name: profile.name || (profile.email ? profile.email.split('@')[0] : 'User'),
-      role: profile.role || 'volunteer',
-      teamId: profile.teamId || null
-    };
-    console.log(`Firebase Auth login success: ${currentUser.name} (${currentUser.role})`);
-    showDashboardAfterLogin();
-  } catch (err) {
-    console.error('Firebase Auth login error:', err);
-    if (err.code === 'auth/user-not-found' || err.code === 'auth/wrong-password' || err.code === 'auth/invalid-credential') {
-       loginErrorMsg.textContent = 'Incorrect email or password.';
-    } else {
-       loginErrorMsg.textContent = 'An error occurred during login.';
-    }
-    loginErrorMsg.classList.add('show');
-  } finally {
-    loginButton.textContent = 'Sign In';
-    loginButton.disabled = false;
-  }
-}
-
-function handleLogout() {
-  auth.signOut().then(() => {
-    currentUser = null;
-    db.ref().off();
-    document.getElementById('mainDashboard').style.display = 'none';
-    document.getElementById('loginPage').style.display = 'flex';
-    const form = document.getElementById('loginForm');
-    if (form) form.reset();
-    console.log('Logged out (Firebase Auth)');
-  }).catch((err) => {
-    console.error('Logout error:', err);
-  });
-}
-
-document.addEventListener('DOMContentLoaded', () => {
-  const loginFormEl = document.getElementById('loginForm');
-  if (loginFormEl) {
-    loginFormEl.addEventListener('submit', handleLogin);
-  }
-  const logoutBtn = document.getElementById('logoutBtn');
-  if (logoutBtn) {
-    logoutBtn.addEventListener('click', handleLogout);
-  }
-
-  auth.onAuthStateChanged(async (user) => {
-    if (user) {
-      const dbUid = user.uid;
-      const profileSnapshot = await db.ref('/users/' + dbUid).once('value');
-      if (!profileSnapshot.exists()) {
-        console.error("User is logged in, but no profile found in DB. Logging out.");
-        auth.signOut();
-        return;
-      }
-      const profile = profileSnapshot.val();
-      currentUser = {
-        uid: dbUid,
-        email: profile.email,
-        name: profile.name || (profile.email ? profile.email.split('@')[0] : 'User'),
-        role: profile.role || 'volunteer',
-        teamId: profile.teamId || null
-      };
-      console.log(`Auth state change: ${currentUser.name} is logged in.`);
-      showDashboardAfterLogin();
-    } else {
-      console.log('Auth state change: User is logged out.');
-      showLoginPage();
-    }
-  });
-
-  document.querySelectorAll('.nav-item').forEach(item => {
-    item.addEventListener('click', (ev) => {
-      ev.preventDefault();
-      const page = item.dataset.page;
-      if (page) navigateToPage(page);
-    });
-  });
-
-  // Wire up ALL modal forms
-  const taskForm = document.getElementById('taskForm');
-  if (taskForm) {
-      taskForm.addEventListener('submit', handleTaskFormSubmit);
-  }
-  const eventForm = document.getElementById('eventForm');
-  if (eventForm) {
-      eventForm.addEventListener('submit', handleEventFormSubmit);
-  }
-  const sponsorForm = document.getElementById('sponsorForm');
-  if (sponsorForm) {
-      sponsorForm.addEventListener('submit', handleSponsorFormSubmit);
-  }
-  const teamForm = document.getElementById('teamForm');
-  if (teamForm) {
-      teamForm.addEventListener('submit', handleTeamFormSubmit);
-  }
-  const announcementForm = document.getElementById('announcementForm');
-  if (announcementForm) {
-      announcementForm.addEventListener('submit', handleAnnouncementFormSubmit);
-  }
-});
-
-// ----------------- REAL-TIME DATA SYNC -----------------
-function initializeRealTimeListeners() {
-  const nodes = ['users', 'teams', 'tasks', 'events', 'sponsors', 'announcements'];
-
-  nodes.forEach(node => {
-    db.ref(node).on('value', (snapshot) => {
-      const data = snapshot.val() || {};
-      
-      const dataWithIds = Object.keys(data).reduce((acc, key) => {
-        const idKey = (node === 'users') ? 'uid' : 'id';
-        acc[key] = { ...data[key], [idKey]: key };
-        return acc;
-      }, {});
-      
-      dbData[node] = dataWithIds;
-      
-      if (currentUser) refreshCurrentPage();
-    });
-  });
-}
-
-function refreshCurrentPage() {
-  navigateToPage(currentPage, true);
-}
-
-// ----------------- PERMISSIONS / RBAC -----------------
-const Permissions = {
-  canManageTask: (task) => {
-    if (!currentUser) return false;
-    if (currentUser.role === 'admin') return true;
-    if (!task && currentUser.role === 'team_lead') return true;
-    if (task && currentUser.role === 'team_lead' && task.teamId === currentUser.teamId) return true;
-    return false;
-  },
-  canUpdateTaskStatus: (task) => {
-    if (!currentUser) return false;
-    if (Permissions.canManageTask(task)) return true;
-    if (currentUser.role === 'volunteer' && task.assigneeId === currentUser.uid) return true;
-    return false;
-  },
-  canManageTeams: () => currentUser && currentUser.role === 'admin',
-  canManageSponsors: () => {
-    if (!currentUser) return false;
-    if (currentUser.role === 'admin') return true;
-    // Assuming 'team7' is Sponsorship team from your JSON
-    if (currentUser.role === 'team_lead' && currentUser.teamId === 'team7') return true;
-    return false;
-  },
-  canManageEvents: () => currentUser && currentUser.role === 'admin',
-  canManageAnnouncements: () => currentUser && currentUser.role === 'admin',
-  canViewPage: (page) => {
-    if (!currentUser) return false;
-    if (page === 'analytics' && currentUser.role === 'volunteer') return false;
-    return true;
-  }
-};
-
-// ----------------- DATA FILTERS -----------------
-function getVisibleTasks() {
-  const allTasks = getObjectValues(dbData.tasks);
-  if (!currentUser) return [];
-  if (currentUser.role === 'admin') return allTasks;
-  if (currentUser.role === 'team_lead') return allTasks.filter(task => task.teamId === currentUser.teamId);
-  if (currentUser.role === 'volunteer') return allTasks.filter(task => task.assigneeId === currentUser.uid);
-  return [];
-}
-
-// ----------------- NAV & RENDER -----------------
-function navigateToPage(page, isRefresh = false) {
-  if (!currentUser) {
-    showLoginPage();
-    return;
-  }
-  if (!isRefresh && !Permissions.canViewPage(page)) {
-    alert("You do not have permission to view this page.");
-    return;
-  }
-  if (!isRefresh) currentPage = page;
-
-  document.querySelectorAll('.nav-item').forEach(item => {
-    item.classList.toggle('active', item.dataset.page === page);
-  });
-
-  const pageContent = document.getElementById('pageContent');
-  if (!isRefresh) {
-    pageContent.innerHTML = `<p>Loading ${page}...</p>`;
-  } else {
-    pageContent.style.opacity = '0.5';
-  }
-
-  setTimeout(() => {
-    switch (page) {
-      case 'dashboard': renderDashboard(pageContent); break;
-      case 'teams': renderTeams(pageContent); break;
-      case 'events': renderEvents(pageContent); break;
-      case 'tasks': renderTasks(pageContent); break;
-      case 'sponsors': renderSponsors(pageContent); break;
-      case 'announcements': renderAnnouncements(pageContent); break;
-      case 'analytics': renderAnalytics(pageContent); break;
-      default:
-        pageContent.innerHTML = `<h2>Page not found: ${page}</h2>`;
-    }
-    pageContent.style.opacity = '1';
-  }, 50);
-}
-
-// ---------- RENDER: Dashboard ----------
-function renderDashboard(container) {
-  const tasks = getVisibleTasks();
-  const progress = calculateProgress(tasks);
-  const totalTasks = tasks.length;
-  const completedTasks = tasks.filter(t => t.status === 'Done').length;
-  const activeEvents = Object.keys(dbData.events).length;
-  const totalMembers = Object.keys(dbData.users).length;
-  const urgentTasks = tasks
-    .filter(t => t.status !== 'Done' && isUrgent(t.dueDate))
-    .sort((a, b) => new Date(a.dueDate) - new Date(b.dueDate))
-    .slice(0, 5);
-
-  container.innerHTML = `
-    <div class="welcome-banner">
-      <div class="welcome-content">
-        <h1 class="welcome-title">Welcome back, ${currentUser.name}!</h1>
-        <span class="role-badge">${currentUser.role.replace('_', ' ')}</span>
-        <p>Let's make NEXERA2k25 a huge success!</p>
-        <div class="quick-actions">
-          ${Permissions.canManageTask(null) ? `<button class="btn" onclick="openTaskModal()">+ Create Task</button>` : ''}
-          ${Permissions.canManageEvents() ? `<button class="btn" onclick="openEventModal()">+ Add Event</button>` : ''}
-          <button class="btn" onclick="navigateToPage('tasks')">View All My Tasks</button>
-        </div>
-      </div>
-    </div>
-    <div class="stats-grid">
-      <div class="stat-card">
-        <div class="stat-icon bg-1">✓</div>
-        <div class="stat-info">
-          <div class="stat-label">Your/Team Tasks</div>
-          <div class="stat-value">${totalTasks}</div>
-        </div>
-      </div>
-      <div class="stat-card">
-        <div class="stat-icon bg-2">📊</div>
-        <div class="stat-info">
-          <div class="stat-label">Completed</div>
-          <div class="stat-value">${completedTasks}</div>
-          <div class="stat-change">${progress}% complete</div>
-        </div>
-      </div>
-      ${currentUser.role !== 'volunteer' ? `
-      <div class="stat-card">
-        <div class="stat-icon bg-3">📅</div>
-        <div class="stat-info">
-          <div class="stat-label">Active Events</div>
-          <div class="stat-value">${activeEvents}</div>
-        </div>
-      </div>
-      <div class="stat-card">
-        <div class="stat-icon bg-4">👥</div>
-        <div class="stat-info">
-          <div class="stat-label">Total Members</div>
-          <div class="stat-value">${totalMembers}</div>
-        </div>
-      </div>
-      ` : ''}
-    </div>
-    <div class="grid-2">
-      <div class="tasks-section">
-        <div class="section-header">
-          <h3 class="section-title">Your Urgent Tasks</h3>
-          <button class="btn btn--sm" onclick="navigateToPage('tasks')">View All</button>
-        </div>
-        <div class="task-list">
-          ${urgentTasks.length === 0 ? '<p style="text-align:center;color:var(--color-text-secondary);padding:var(--space-24);">No urgent tasks</p>' : urgentTasks.map(task => `
-            <div class="task-item" onclick="openTaskDetailModal('${task.id}')">
-              <div class="task-priority ${task.priority ? task.priority.toLowerCase() : ''}"></div>
-              <div class="task-details">
-                <div class="task-title">${task.title}</div>
-                <div class="task-meta">
-                  <span class="task-assignee">👤 ${getUserById(task.assigneeId).name}</span>
-                  <span class="status status--info">⚡ ${getTeamById(task.teamId).icon ? `<span class="material-symbols-outlined" style="font-size: 14px; vertical-align: middle;">${getTeamById(task.teamId).icon}</span>` : ''} ${getTeamById(task.teamId).name}</span>
-                  <span class="task-due-date ${isUrgent(task.dueDate) ? 'urgent' : ''}">📅 ${formatDate(task.dueDate)}</span>
-                </div>
-              </div>
-            </div>
-          `).join('')}
-        </div>
-      </div>
-      ${currentUser.role !== 'volunteer' ? `
-      <div class="progress-section">
-        <div class="section-header"><h3 class="section-title">Team Progress</h3></div>
-        <div class="team-progress-list">
-          ${getObjectValues(dbData.teams).map((team, index) => {
-            const teamProgress = calculateTeamProgress(team.id);
-            return `
-              <div class="team-progress-item">
-                <div class="team-info">
-                  <span class="team-icon material-symbols-outlined">${team.icon || 'group'}</span>
-                  <span class="team-name">${team.name}</span>
-                </div>
-                <div class="progress-bar-container">
-                  <div class="progress-bar color-${(index % 5) + 1}" style="width: ${teamProgress}%"></div>
-                </div>
-                <div class="progress-percentage-text">${teamProgress}%</div>
-              </div>
-            `;
-          }).join('')}
-        </div>
-      </div>
-      ` : `
-      <div class="progress-section">
-        <h3 class="section-title">NEXERA2k25</h3>
-        <p>Welcome to the team! Your assigned tasks will appear here and on the 'Tasks' page.</p>
-        <p>Thank you for volunteering!</p>
-      </div>
-      `}
-    </div>
-  `;
-}
-
-// ---------- RENDER: Tasks (Kanban) ----------
-function renderTasks(container) {
-  const tasks = getVisibleTasks();
-  const todoTasks = tasks.filter(t => t.status === 'To Do');
-  const inProgressTasks = tasks.filter(t => t.status === 'In Progress');
-  const doneTasks = tasks.filter(t => t.status === 'Done');
-
-  container.innerHTML = `
-    <div style="display:flex;justify-content:space-between;align-items:center;margin-bottom:var(--space-24);">
-      <h2>Tasks</h2>
-      ${Permissions.canManageTask(null) ? `<button class="btn btn--primary" onclick="openTaskModal()">+ Create Task</button>` : ''}
-    </div>
-    <div class="kanban-board">
-      <div class="kanban-column">
-        <div class="kanban-header todo"><span class="kanban-title">To Do</span><span class="kanban-count">${todoTasks.length}</span></div>
-        <div class="kanban-cards">
-          ${todoTasks.length === 0 ? '<p class="kanban-empty" style="text-align:center;color:var(--color-text-secondary);padding:var(--space-16);">No tasks</p>' : todoTasks.map(task => renderKanbanCard(task)).join('')}
-        </div>
-      </div>
-      <div class="kanban-column">
-        <div class="kanban-header inprogress"><span class="kanban-title">In Progress</span><span class="kanban-count">${inProgressTasks.length}</span></div>
-        <div class="kanban-cards">
-          ${inProgressTasks.length === 0 ? '<p class="kanban-empty" style="text-align:center;color:var(--color-text-secondary);padding:var(--space-16);">No tasks</p>' : inProgressTasks.map(task => renderKanbanCard(task)).join('')}
-        </div>
-      </div>
-      <div class="kanban-column">
-        <div class="kanban-header done"><span class="kanban-title">Done</span><span class="kanban-count">${doneTasks.length}</span></div>
-        <div class="kanban-cards">
-          ${doneTasks.length === 0 ? '<p class="kanban-empty" style="text-align:center;color:var(--color-text-secondary);padding:var(--space-16);">No tasks</p>' : doneTasks.map(task => renderKanbanCard(task)).join('')}
-        </div>
-      </div>
-    </div>
-  `;
-}
-
-// REPLACE your old renderKanbanCard function with this one
-function renderKanbanCard(task) {
-  const assignee = getUserById(task.assigneeId);
-  const team = getTeamById(task.teamId);
+  /* * APPLE UI MODIFICATION 
+   * We change the core colors to feel more like macOS/iOS.
+   */
+  --color-background: #F4F4F9; /* A cooler, more "Apple" white */
+  --color-surface: rgba(255, 255, 255, 0.75); /* Frosted glass */
+  --color-surface-opaque: var(--color-white); /* For cards */
+  --color-border-subtle: rgba(0, 0, 0, 0.07);
+  --color-border: rgba(0, 0, 0, 0.1);
+  --color-card-border: var(--color-border-subtle);
   
-  // Progress bar for 'In Progress'
-  const progressBarHtml = (task.status === 'In Progress' && task.progress > 0)
-    ? `
-      <div class="card-progress-container">
-        <div class="card-progress-bar" style="width: ${task.progress}%"></div>
-      </div>
-    `
-    : '';
+  --color-text: #1D1D1F; /* Apple's primary text color */
+  --color-text-secondary: rgba(60, 60, 67, 0.7); /* Apple's secondary */
 
-  // ** NEW: Link Icon if drive link exists **
-  const linkHtml = task.driveLink 
-    ? `<a href="${task.driveLink}" target="_blank" title="Open Drive Link" style="float: right; text-decoration: none; color: var(--color-primary);"><span class="material-symbols-outlined" style="font-size: 18px;">link</span></a>` 
-    : '';
-
-  return `
-    <div class="kanban-card" onclick="openTaskDetailModal('${task.id}')">
-      <div style="display: flex; justify-content: space-between; align-items: flex-start;">
-        <div class="kanban-card-title">${task.title}</div>
-        ${linkHtml}
-      </div>
-      <div class="kanban-card-description">${task.description || ''}</div>
-      ${currentUser.role === 'admin' ? `<div class="kanban-card-team" style="font-size:var(--font-size-sm);color:var(--color-text-secondary);margin-bottom:var(--space-8);">${team.icon ? `<span class="material-symbols-outlined" style="font-size: 16px; vertical-align: text-bottom;">${team.icon}</span>` : ''} ${team.name}</div>` : ''}
-      
-      ${progressBarHtml} 
-
-      <div class="kanban-card-footer" style="${progressBarHtml ? 'margin-top: 12px;' : ''}">
-        <span class="status status--${(task.priority || 'todo').toLowerCase()}">${task.priority || 'Todo'}</span>
-        <span style="font-size:var(--font-size-sm);color:var(--color-text-secondary);">👤 ${assignee.name.split(' ')[0]}</span>
-      </div>
-      <div style="margin-top:var(--space-8);font-size:var(--font-size-xs);color:var(--color-text-secondary);${isUrgent(task.dueDate) ? 'color:var(--color-error);font-weight:bold;' : ''}">📅 ${formatDate(task.dueDate)}</div>
-    </div>
-  `;
-}
-
-// ---------- RENDER: Teams ----------
-function renderTeams(container) {
-  container.innerHTML = `
-    <div style="display:flex;justify-content:space-between;align-items:center;margin-bottom:var(--space-24);">
-      <h2>Teams</h2>
-      ${Permissions.canManageTeams() ? `<button class="btn btn--primary" onclick="openTeamModal()">+ Add Team</button>` : ''}
-    </div>
-    <div class="grid-3">
-      ${getObjectValues(dbData.teams).map(team => {
-        const lead = getObjectValues(dbData.users).find(u => u.teamId === team.id && u.role === 'team_lead') || { name: 'N/A' };
-        const teamProgress = calculateTeamProgress(team.id);
-        const teamTasks = getObjectValues(dbData.tasks).filter(t => t.teamId === team.id);
-        const todoCount = teamTasks.filter(t => t.status === 'To Do').length;
-        const doneCount = teamTasks.filter(t => t.status === 'Done').length;
-
-        const iconHtml = `<span class="material-symbols-outlined">${team.icon || 'group'}</span>`;
-
-        return `
-          <div class="card">
-            <div class="card__body">
-              <div style="font-size:48px;text-align:center; color: var(--color-primary);">${iconHtml}</div>
-              <h3 style="text-align:center;">${team.name}</h3>
-              <p style="text-align:center;color:var(--color-text-secondary);">Lead: ${lead.name}</p>
-              <div class="progress-bar-container" style="margin:16px 0;">
-                <div class="progress-bar color-1" style="width: ${teamProgress}%"></div>
-              </div>
-              <div style="display:flex;justify-content:space-between; margin-bottom: 16px;">
-                <span class="status status--todo">${todoCount} To Do</span>
-                <span class="status status--done">${doneCount} Done</span>
-              </div>
-              ${Permissions.canManageTeams() ? `
-                <button class="btn btn--sm btn--secondary btn--full-width" onclick="openTeamModal('${team.id}')">Edit Team</button>
-              ` : ''}
-            </div>
-          </div>
-        `;
-      }).join('')}
-    </div>
-  `;
-}
-
-// ---------- RENDER: Events ----------
-function renderEvents(container) {
-  const events = getObjectValues(dbData.events);
-  container.innerHTML = `
-    <div style="display:flex;justify-content:space-between;align-items:center;margin-bottom:var(--space-24);">
-      <h2>Events</h2>
-      ${Permissions.canManageEvents() ? `<button class="btn btn--primary" onclick="openEventModal()">+ Add Event</button>` : ''}
-    </div>
-    ${events.length === 0 ? `
-      <div class="card"><div class="card__body text-center"><p>No events have been added yet.</p></div></div>
-    ` : `
-      <div class="data-table">
-        <table>
-          <thead>
-            <tr>
-              <th>Event Name</th>
-              <th>Type</th>
-              <th>Date</th>
-              <th>Venue</th>
-              ${Permissions.canManageEvents() ? '<th>Actions</th>' : ''}
-            </tr>
-          </thead>
-          <tbody>
-            ${events.map(event => `
-              <tr>
-                <td><strong>${event.name}</strong></td>
-                <td><span class="status status--info">${event.type}</span></td>
-                <td>${formatDate(event.date)}</td>
-                <td>${event.venue || 'TBD'}</td>
-                ${Permissions.canManageEvents() ? `
-                  <td>
-                    <div class="table-actions">
-                      <button class="icon-btn" onclick="openEventModal('${event.id}')" title="Edit">✏️</button>
-                      <button class="icon-btn" onclick="handleDelete('events', '${event.id}', 'event')" title="Delete">🗑️</button>
-                    </div>
-                  </td>
-                ` : ''}
-              </tr>
-            `).join('')}
-          </tbody>
-        </table>
-      </div>
-    `}
-  `;
-}
-
-// ---------- RENDER: Sponsors (Updated) ----------
-function renderSponsors(container) {
-  const sponsors = getObjectValues(dbData.sponsors);
-  container.innerHTML = `
-    <div style="display:flex;justify-content:space-between;align-items:center;margin-bottom:var(--space-24);">
-      <h2>Sponsors</h2>
-      ${Permissions.canManageSponsors() ? `<button class="btn btn--primary" onclick="openSponsorModal()">+ Add Sponsor</button>` : ''}
-    </div>
-    ${sponsors.length === 0 ? `
-      <div class="card"><div class="card__body text-center"><p>No sponsors added yet.</p></div></div>
-    ` : `
-      <div class="grid-3">
-        ${sponsors.map(s => `
-          <div class="card">
-            <div class="card__body">
-              <h3>${s.name}</h3>
-              <p class="status status--info" style="margin-bottom: 12px; display: inline-block;">${s.tier || 'General'}</p>
-              
-              ${s.amount ? `
-                <h4 style="font-size: var(--font-size-xl); color: var(--color-success); margin-bottom: 12px; font-weight: 600;">
-                  ₹${parseInt(s.amount).toLocaleString('en-IN')}
-                </h4>
-              ` : ''}
-              ${s.description ? `
-                <p style="font-size: var(--font-size-sm); color: var(--color-text-secondary); margin-bottom: 16px; white-space: pre-wrap;">
-                  ${s.description}
-                </p>
-              ` : ''}
-              <div style="margin-top:12px; display: flex; gap: 8px;">
-                ${Permissions.canManageSponsors() ? `
-                  <button class="btn btn--sm btn--secondary" onclick="openSponsorModal('${s.id}')">Edit</button>
-                  <button class="btn btn--sm" onclick="handleDelete('sponsors','${s.id}','sponsor')">Delete</button>
-                ` : ''}
-              </div>
-            </div>
-          </div>
-        `).join('')}
-      </div>
-    `}
-  `;
-}
-
-// ---------- RENDER: Announcements ----------
-function renderAnnouncements(container) {
-  const announcements = getObjectValues(dbData.announcements).sort((a, b) => new Date(b.timestamp) - new Date(a.timestamp)); // Newest first
+  --color-primary: var(--color-primary-purple);
+  --color-primary-hover: var(--color-primary-indigo);
+  --color-primary-active: var(--color-primary-indigo);
+  --color-secondary: rgba(var(--color-slate-500-rgb), 0.1);
+  --color-secondary-hover: rgba(var(--color-slate-500-rgb), 0.15);
+  --color-secondary-active: rgba(var(--color-slate-500-rgb), 0.2);
+  --color-btn-primary-text: var(--color-white);
   
-  container.innerHTML = `
-    <div style="display:flex;justify-content:space-between;align-items:center;margin-bottom:var(--space-24);">
-      <h2>Announcements</h2>
-      ${Permissions.canManageAnnouncements() ? `<button class="btn btn--primary" onclick="openAnnouncementModal()">+ Add Announcement</button>` : ''}
-    </div>
-    <div class="announcement-list" style="display: flex; flex-direction: column; gap: 16px;">
-      ${announcements.length === 0 ? `
-        <div class="card"><div class="card__body text-center"><p>No announcements yet.</p></div></div>
-      ` : announcements.map(post => `
-        <div class="card">
-          <div class="card__body">
-            <h3 style="margin-bottom: 8px;">${post.title}</h3>
-            <p style="color: var(--color-text-secondary); font-size: var(--font-size-sm); margin-bottom: 16px;">
-              Posted by ${getUserById(post.authorId).name} on ${formatDate(post.timestamp, true)}
-            </p>
-            <p style="white-space: pre-wrap; margin-bottom: 0;">${post.content}</p>
-            ${Permissions.canManageAnnouncements() ? `
-              <div style="margin-top: 16px; border-top: 1px solid var(--color-border); padding-top: 16px;">
-                <button class="btn btn--sm" onclick="handleDelete('announcements','${post.id}','announcement')">Delete</button>
-              </div>
-            ` : ''}
-          </div>
-        </div>
-      `).join('')}
-    </div>
-  `;
-}
+  --color-error: var(--color-red-500);
+  --color-success: var(--color-teal-500);
+  --color-warning: var(--color-orange-500);
+  --color-info: var(--color-slate-500);
+  --color-focus-ring: rgba(99, 102, 241, 0.4);
+  --color-select-caret: rgba(var(--color-slate-900-rgb), 0.8);
 
-// ---------- RENDER: Analytics ----------
-function renderAnalytics(container) {
-  const allTasks = getObjectValues(dbData.tasks);
-  const doneTasks = allTasks.filter(t => t.status === 'Done').length;
-  const progress = calculateProgress(allTasks);
-  const totalEvents = Object.keys(dbData.events).length;
-  const totalSponsors = Object.keys(dbData.sponsors).length;
-  const totalMembers = Object.keys(dbData.users).length;
-  const teams = getObjectValues(dbData.teams);
+  /* Common style patterns */
+  --focus-ring: 0 0 0 3px var(--color-focus-ring);
+  --focus-outline: 2px solid var(--color-primary);
+  --status-bg-opacity: 0.1;
+  --status-border-opacity: 0.0; /* Remove borders from status */
 
-  container.innerHTML = `
-    <div style="margin-bottom:var(--space-24);">
-      <h2>Analytics Overview</h2>
-    </div>
-    <div class="stats-grid" style="margin-bottom: var(--space-32);">
-      <div class="stat-card">
-        <div class="stat-icon bg-1">✓</div>
-        <div class="stat-info">
-          <div class="stat-label">Total Tasks</div>
-          <div class="stat-value">${allTasks.length}</div>
-        </div>
-      </div>
-      <div class="stat-card">
-        <div class="stat-icon bg-2">📊</div>
-        <div class="stat-info">
-          <div class="stat-label">Overall Progress</div>
-          <div class="stat-value">${progress}%</div>
-          <div class="stat-change">${doneTasks} / ${allTasks.length} tasks</div>
-        </div>
-      </div>
-      <div class="stat-card">
-        <div class="stat-icon bg-3">📅</div>
-        <div class="stat-info">
-          <div class="stat-label">Total Events</div>
-          <div class="stat-value">${totalEvents}</div>
-        </div>
-      </div>
-      <div class="stat-card">
-        <div class="stat-icon bg-5">💰</div>
-        <div class="stat-info">
-          <div class="stat-label">Total Sponsors</div>
-          <div class="stat-value">${totalSponsors}</div>
-        </div>
-      </div>
-    </div>
+  /* RGB versions for opacity control */
+  --color-success-rgb: 33, 128, 141;
+  --color-error-rgb: 192, 21, 47;
+  --color-warning-rgb: 168, 75, 47;
+  --color-info-rgb: 98, 108, 113;
+  --color-slate-900-rgb: 19, 52, 59;
+  --color-slate-500-rgb: 98, 108, 113;
 
-    <div class="progress-section">
-      <div class="section-header"><h3 class="section-title">Tasks per Team</h3></div>
-      <div class="team-progress-list">
-        ${teams.map((team, index) => {
-          const teamTasks = allTasks.filter(t => t.teamId === team.id);
-          const teamProgress = calculateTeamProgress(team.id);
-          return `
-            <div class="team-progress-item">
-              <div class="team-info" style="min-width: 200px;">
-                <span class="team-icon material-symbols-outlined">${team.icon || 'group'}</span>
-                <span class="team-name">${team.name}</span>
-              </div>
-              <div class="progress-bar-container">
-                <div class="progress-bar color-${(index % 5) + 1}" style="width: ${teamProgress}%"></div>
-              </div>
-              <div class="progress-percentage-text" style="min-width: 80px;">${teamTasks.length} Tasks</div>
-            </div>
-          `;
-        }).join('')}
-      </div>
-    </div>
-  `;
-}
-
-// ---------- MISC UI Helpers ----------
-function updateUserProfileUI() {
-  if (!currentUser) return;
-  const sidebarUserName = document.getElementById('sidebarUserName');
-  const sidebarUserRole = document.getElementById('sidebarUserRole');
-  const sidebarAvatar = document.getElementById('sidebarAvatar');
-  const headerAvatar = document.getElementById('headerAvatar');
-  if (sidebarUserName) sidebarUserName.textContent = currentUser.name;
-  if (sidebarUserRole) sidebarUserRole.textContent = currentUser.role.replace('_', ' ');
-  if (sidebarAvatar) sidebarAvatar.textContent = currentUser.name ? currentUser.name[0].toUpperCase() : 'U';
-  if (headerAvatar) headerAvatar.textContent = currentUser.name ? currentUser.name[0].toUpperCase() : 'U';
-}
-
-function startCountdown() {
-  const daysEl = document.getElementById('countdownDays');
-  const hoursEl = document.getElementById('countdownHours');
-  const minsEl = document.getElementById('countdownMinutes');
-  const secsEl = document.getElementById('countdownSeconds');
-  function update() {
-    const now = new Date();
-    const diff = SYMPOSIUM_DATE - now;
-    if (diff <= 0) {
-      daysEl.textContent = '0'; hoursEl.textContent = '0'; minsEl.textContent = '0'; secsEl.textContent = '0';
-      return;
-    }
-    const days = Math.floor(diff / (1000 * 60 * 60 * 24));
-    const hours = Math.floor((diff / (1000 * 60 * 60)) % 24);
-    const minutes = Math.floor((diff / (1000 * 60)) % 60);
-    const seconds = Math.floor((diff / 1000) % 60);
-    daysEl.textContent = days; hoursEl.textContent = hours; minsEl.textContent = minutes; secsEl.textContent = seconds;
-  }
-  update();
-  setInterval(update, 1000);
-}
-
-// ---------- CRUD helpers (simple) ----------
-function handleDelete(node, id, label) {
-  if (!confirm(`Are you sure you want to delete this ${label}?`)) return;
-  // Check permissions
-  if (node === 'events' && !Permissions.canManageEvents()) { alert('Insufficient permissions'); return; }
-  if (node === 'sponsors' && !Permissions.canManageSponsors()) { alert('Insufficient permissions'); return; }
-  if (node === 'announcements' && !Permissions.canManageAnnouncements()) { alert('Insufficient permissions'); return; }
-
-  db.ref(`${node}/${id}`).remove().then(() => {
-    console.log(`${label} ${id} removed`);
-  }).catch(err => console.error('Delete error', err));
-}
-
-// ----------------- MODAL & FORM HANDLING -----------------
-
-function closeModal() {
-  document.querySelectorAll('.modal-overlay').forEach(modal => {
-    modal.style.display = 'none';
-  });
-}
-
-function populateSelect(elId, items, selectedValue = null) {
-  const selectEl = document.getElementById(elId);
-  if (!selectEl) return;
-  selectEl.innerHTML = ''; // Clear old options
-  items.forEach(item => {
-    const option = document.createElement('option');
-    option.value = item.id;
-    option.textContent = item.name;
-    if (item.id === selectedValue) {
-      option.selected = true;
-    }
-    selectEl.appendChild(option);
-  });
-}
-
-// --- TASK MODAL (Updated) ---
-// REPLACE your old openTaskModal function with this one
-function openTaskModal(taskId = null) {
-  const modalOverlay = document.getElementById('taskModalOverlay');
-  const modalTitle = document.getElementById('taskModalTitle');
-  const form = document.getElementById('taskForm');
+  /* * APPLE UI MODIFICATION 
+   * Prioritize Inter and Geist for that crisp "SF Pro" feel.
+   */
+  --font-family-base: "Inter", "Geist", -apple-system,
+    BlinkMacSystemFont, "Segoe UI", Roboto, sans-serif;
+  --font-family-headings: "Geist", "Inter", -apple-system, sans-serif;
+  --font-family-mono: "Berkeley Mono", ui-monospace, SFMono-Regular, Menlo,
+    Monaco, Consolas, monospace;
   
-  form.reset();
-  document.getElementById('taskIdInput').value = '';
+  --font-size-xs: 11px;
+  --font-size-sm: 12px;
+  --font-size-base: 14px;
+  --font-size-md: 14px;
+  --font-size-lg: 16px;
+  --font-size-xl: 18px;
+  --font-size-2xl: 20px;
+  --font-size-3xl: 24px;
+  --font-size-4xl: 30px;
+  --font-weight-normal: 400;
+  --font-weight-medium: 500;
+  --font-weight-semibold: 600; /* Apple uses 600 for semibold */
+  --font-weight-bold: 700;
+  --line-height-tight: 1.2;
+  --line-height-normal: 1.5;
+  --letter-spacing-tight: -0.02em; /* Tighter letter-spacing */
 
-  // --- Get progress slider elements ---
-  const progressContainer = document.getElementById('taskProgressContainer');
-  const progressSlider = document.getElementById('taskProgressInput');
-  const progressLabel = document.getElementById('taskProgressLabel');
+  /* Spacing */
+  --space-0: 0;
+  --space-1: 1px;
+  --space-2: 2px;
+  --space-4: 4px;
+  --space-6: 6px;
+  --space-8: 8px;
+  --space-10: 10px;
+  --space-12: 12px;
+  --space-16: 16px;
+  --space-20: 20px;
+  --space-24: 24px;
+  --space-32: 32px;
+
+  /* * APPLE UI MODIFICATION 
+   * Use rounder corners, more like iOS/macOS.
+   */
+  --radius-sm: 6px;
+  --radius-base: 10px; /* Softer radius */
+  --radius-md: 12px;
+  --radius-lg: 16px; /* Softer radius */
+  --radius-xl: 20px; /* Softer radius */
+  --radius-full: 9999px;
+
+  /* * APPLE UI MODIFICATION 
+   * Use more diffuse, softer shadows.
+   */
+  --shadow-xs: 0 1px 2px rgba(0, 0, 0, 0.02);
+  --shadow-sm: 0 2px 8px -2px rgba(0, 0, 0, 0.04);
+  --shadow-md: 0 4px 12px -2px rgba(0, 0, 0, 0.06);
+  --shadow-lg: 0 10px 20px -5px rgba(0, 0, 0, 0.08);
+  --shadow-xl: 0 20px 30px -10px rgba(0, 0, 0, 0.1);
+  --shadow-inset-sm: inset 0 1px 0 rgba(255, 255, 255, 0.15),
+    inset 0 -1px 0 rgba(0, 0, 0, 0.03);
+
+  /* Animation */
+  --duration-fast: 150ms;
+  --duration-normal: 250ms;
+  --ease-standard: cubic-bezier(0.16, 1, 0.3, 1);
+  --ease-apple: cubic-bezier(0.25, 0.1, 0.25, 1); /* Apple's default ease */
+
+  /* Layout */
+  --container-sm: 640px;
+  --container-md: 768px;
+  --container-lg: 1024px;
+  --container-xl: 1280px;
+  --sidebar-width: 260px;
+  --header-height: 70px;
+}
+
+@font-face {
+  font-family: 'FKGroteskNeue';
+  src: url('https://r2cdn.perplexity.ai/fonts/FKGroteskNeue.woff2')
+    format('woff2');
+}
+
+/* Base styles */
+html {
+  font-size: var(--font-size-base);
+  font-family: var(--font-family-base);
+  line-height: var(--line-height-normal);
+  color: var(--color-text);
+  background-color: var(--color-background);
+  -webkit-font-smoothing: antialiased;
+  -moz-osx-font-smoothing: grayscale; /* Crisper fonts */
+  box-sizing: border-box;
+}
+
+body {
+  margin: 0;
+  padding: 0;
+}
+
+*,
+*::before,
+*::after {
+  box-sizing: inherit;
+}
+
+/* Typography */
+h1,
+h2,
+h3,
+h4,
+h5,
+h6 {
+  margin: 0;
+  font-family: var(--font-family-headings);
+  font-weight: var(--font-weight-semibold);
+  line-height: var(--line-height-tight);
+  color: var(--color-text);
+  letter-spacing: var(--letter-spacing-tight);
+}
+
+h1 {
+  font-size: var(--font-size-4xl);
+}
+h2 {
+  font-size: var(--font-size-3xl);
+}
+h3 {
+  font-size: var(--font-size-2xl);
+}
+h4 {
+  font-size: var(--font-size-xl);
+}
+h5 {
+  font-size: var(--font-size-lg);
+}
+h6 {
+  font-size: var(--font-size-md);
+}
+
+p {
+  margin: 0 0 var(--space-16) 0;
+}
+
+a {
+  color: var(--color-primary);
+  text-decoration: none;
+  transition: color var(--duration-fast) var(--ease-apple);
+}
+
+a:hover {
+  color: var(--color-primary-hover);
+}
+
+/* Buttons */
+.btn {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  padding: var(--space-10) var(--space-20);
+  border-radius: var(--radius-base);
+  font-size: var(--font-size-base);
+  font-weight: 500;
+  line-height: 1.5;
+  cursor: pointer;
+  transition: all 0.2s var(--ease-apple);
+  border: none;
+  text-decoration: none;
+  position: relative;
+}
+
+.btn:focus-visible {
+  outline: none;
+  box-shadow: var(--focus-ring);
+}
+
+.btn--primary {
+  background: linear-gradient(135deg, var(--color-primary-purple), var(--color-primary-indigo));
+  color: var(--color-btn-primary-text);
+  box-shadow: 0 2px 5px rgba(99, 102, 241, 0.2);
+}
+
+.btn--primary:hover {
+  transform: translateY(-2px);
+  box-shadow: 0 4px 15px -5px var(--color-primary-purple), 
+              0 2px 20px -5px var(--color-accent-cyan);
+}
+
+.btn--primary:active {
+  background: var(--color-primary-active);
+  transform: translateY(0);
+  box-shadow: none;
+}
+
+.btn--secondary {
+  background: var(--color-secondary);
+  color: var(--color-text);
+}
+
+.btn--secondary:hover {
+  background: var(--color-secondary-hover);
+}
+
+.btn--secondary:active {
+  background: var(--color-secondary-active);
+}
+
+.btn--outline {
+  background: transparent;
+  border: 1px solid var(--color-border);
+  color: var(--color-text);
+}
+
+.btn--outline:hover {
+  background: var(--color-secondary);
+}
+
+.btn--sm {
+  padding: var(--space-6) var(--space-12);
+  font-size: var(--font-size-sm);
+  border-radius: var(--radius-sm);
+}
+
+.btn--lg {
+  padding: var(--space-12) var(--space-24);
+  font-size: var(--font-size-lg);
+  border-radius: var(--radius-md);
+}
+
+.btn--full-width {
+  width: 100%;
+}
+
+.btn:disabled {
+  opacity: 0.5;
+  cursor: not-allowed;
+}
+
+/* Form elements */
+.form-control {
+  display: block;
+  width: 100%;
+  padding: var(--space-10) var(--space-12);
+  font-size: var(--font-size-md);
+  line-height: 1.5;
+  color: var(--color-text);
+  background-color: var(--color-background); /* Lighter background */
+  border: 1px solid var(--color-border);
+  border-radius: var(--radius-base);
+  transition: border-color var(--duration-fast) var(--ease-apple),
+    box-shadow var(--duration-fast) var(--ease-apple);
+}
+
+.form-control:focus {
+  border-color: var(--color-primary);
+  outline: none; /* Removed outline for a cleaner focus ring */
+  box-shadow: var(--focus-ring);
+}
+
+.form-label {
+  display: block;
+  margin-bottom: var(--space-8);
+  font-weight: var(--font-weight-medium);
+  font-size: var(--font-size-sm);
+  color: var(--color-text);
+}
+
+.form-group {
+  margin-bottom: var(--space-16);
+}
+
+.error-message {
+  color: var(--color-error);
+  font-size: var(--font-size-sm);
+  margin-top: var(--space-4);
+  display: none;
+}
+
+.error-message.show {
+  display: block;
+}
+
+/* * APPLE UI MODIFICATION 
+ * Softer cards, rounder corners, and better hover.
+ */
+.card {
+  background-color: var(--color-surface-opaque);
+  border-radius: var(--radius-lg);
+  border: 1px solid var(--color-border-subtle);
+  box-shadow: var(--shadow-sm);
+  overflow: hidden;
+  transition: box-shadow 0.3s var(--ease-apple),
+              transform 0.3s var(--ease-apple);
+}
+
+.card:hover {
+  box-shadow: var(--shadow-md);
+  transform: translateY(-3px);
+}
+
+.card__body {
+  padding: var(--space-20);
+}
+
+/* Status badges */
+.status {
+  display: inline-flex;
+  align-items: center;
+  padding: var(--space-4) var(--space-12);
+  border-radius: var(--radius-full);
+  font-weight: var(--font-weight-medium);
+  font-size: var(--font-size-sm);
+  border: none; /* Removed border */
+}
+
+.status--success,
+.status--done {
+  background-color: rgba(var(--color-success-rgb, 33, 128, 141), var(--status-bg-opacity));
+  color: var(--color-success);
+}
+
+.status--error,
+.status--high {
+  background-color: rgba(var(--color-error-rgb, 192, 21, 47), var(--status-bg-opacity));
+  color: var(--color-error);
+}
+
+.status--warning,
+.status--inprogress,
+.status--medium {
+  background-color: rgba(var(--color-warning-rgb, 168, 75, 47), var(--status-bg-opacity));
+  color: var(--color-warning);
+}
+
+.status--info,
+.status--todo,
+.status--low {
+  background-color: rgba(var(--color-info-rgb, 98, 108, 113), var(--status-bg-opacity));
+  color: var(--color-info);
+}
+
+/* LOGIN PAGE STYLES */
+.login-page {
+  min-height: 100vh;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  background: var(--color-background);
+}
+
+.login-container {
+  display: flex;
+  width: 100%;
+  max-width: 1200px;
+  min-height: 600px;
+  background: var(--color-surface-opaque);
+  border-radius: var(--radius-xl);
+  box-shadow: var(--shadow-xl);
+  overflow: hidden;
+}
+
+.login-left {
+  flex: 1;
+  background: linear-gradient(135deg, var(--color-primary-purple), var(--color-primary-indigo), var(--color-accent-cyan));
+  padding: var(--space-32);
+  display: flex;
+  flex-direction: column;
+  justify-content: center;
+  position: relative;
+  overflow: hidden;
+}
+
+.login-brand {
+  position: relative;
+  z-index: 2;
+  text-align: center;
+}
+
+.brand-icon {
+  font-size: 80px;
+  margin-bottom: var(--space-20);
+  animation: float 3s ease-in-out infinite;
+}
+
+/* Updated float animation */
+@keyframes float {
+  0%, 100% { 
+    transform: translateY(0) rotate(0); 
+  }
+  50% { 
+    transform: translateY(-12px) rotate(2deg); 
+  }
+}
+
+.brand-title {
+  font-size: 48px;
+  font-weight: var(--font-weight-bold);
+  color: var(--color-white);
+  margin-bottom: var(--space-12);
+}
+
+.brand-tagline {
+  font-size: var(--font-size-xl);
+  color: rgba(255, 255, 255, 0.9);
+  margin-bottom: var(--space-8);
+}
+
+.brand-subtitle {
+  font-size: var(--font-size-base);
+  color: rgba(255, 255, 255, 0.8);
+}
+
+.login-animation {
+  position: absolute;
+  inset: 0;
+  z-index: 1;
+}
+
+.particle {
+  position: absolute;
+  width: 100px;
+  height: 100px;
+  border: 2px solid rgba(255, 255, 255, 0.2);
+  border-radius: 50%;
+  animation: particleFloat 15s ease-in-out infinite;
+}
+
+.particle:nth-child(1) {
+  top: 10%;
+  left: 10%;
+  animation-delay: 0s;
+}
+
+.particle:nth-child(2) {
+  top: 60%;
+  left: 70%;
+  width: 150px;
+  height: 150px;
+  animation-delay: 2s;
+}
+
+.particle:nth-child(3) {
+  top: 30%;
+  right: 10%;
+  width: 80px;
+  height: 80px;
+  animation-delay: 4s;
+}
+
+.particle:nth-child(4) {
+  bottom: 20%;
+  left: 30%;
+  width: 120px;
+  height: 120px;
+  animation-delay: 6s;
+}
+
+.particle:nth-child(5) {
+  bottom: 40%;
+  right: 20%;
+  width: 90px;
+  height: 90px;
+  animation-delay: 8s;
+}
+
+@keyframes particleFloat {
+  0%, 100% { transform: translate(0, 0) rotate(0deg); }
+  25% { transform: translate(20px, -20px) rotate(90deg); }
+  50% { transform: translate(-15px, 15px) rotate(180deg); }
+  75% { transform: translate(15px, 20px) rotate(270deg); }
+}
+
+.login-right {
+  flex: 1;
+  padding: var(--space-32);
+  display: flex;
+  align-items: center;
+  justify-content: center;
+}
+
+.login-form-card {
+  width: 100%;
+  max-width: 400px;
+}
+
+.login-form-card h2 {
+  margin-bottom: var(--space-8);
+  color: var(--color-text);
+}
+
+.login-subtitle {
+  color: var(--color-text-secondary);
+  margin-bottom: var(--space-24);
+}
+
+.demo-users {
+  margin-top: var(--space-24);
+  padding-top: var(--space-24);
+  border-top: 1px solid var(--color-border);
+}
+
+.demo-title {
+  font-size: var(--font-size-sm);
+  color: var(--color-text-secondary);
+  margin-bottom: var(--space-12);
+}
+
+.demo-list {
+  display: flex;
+  flex-direction: column;
+  gap: var(--space-8);
+}
+
+.demo-badge {
+  display: inline-block;
+  padding: var(--space-6) var(--space-12);
+  background: var(--color-bg-1);
+  border-radius: var(--radius-base);
+  font-size: var(--font-size-sm);
+  color: var(--color-primary);
+  font-family: var(--font-family-mono);
+}
+
+/* DASHBOARD LAYOUT */
+.dashboard {
+  display: flex;
+  min-height: 100vh;
+  background: var(--color-background);
+}
+
+/* * APPLE UI MODIFICATION 
+ * Apply "frosted glass" to sidebar.
+ */
+.sidebar {
+  width: var(--sidebar-width);
+  background: var(--color-surface);
+  backdrop-filter: blur(20px);
+  -webkit-backdrop-filter: blur(20px);
+  border-right: 1px solid var(--color-border-subtle);
+  display: flex;
+  flex-direction: column;
+  position: fixed;
+  left: 0;
+  top: 0;
+  bottom: 0;
+  z-index: 100;
+  transition: transform var(--duration-normal) var(--ease-apple);
+}
+
+.sidebar-header {
+  padding: var(--space-20);
+  border-bottom: 1px solid var(--color-border-subtle);
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+}
+
+.sidebar-brand {
+  display: flex;
+  align-items: center;
+  gap: var(--space-12);
+}
+
+.sidebar-brand .brand-icon {
+  font-size: 24px;
+}
+
+.sidebar-brand .brand-text {
+  font-size: var(--font-size-lg);
+  font-weight: var(--font-weight-bold);
+  background: linear-gradient(135deg, var(--color-primary-purple), var(--color-accent-cyan));
+  -webkit-background-clip: text;
+  -webkit-text-fill-color: transparent;
+  background-clip: text;
+}
+
+.sidebar-toggle {
+  display: none;
+  background: none;
+  border: none;
+  font-size: 24px;
+  cursor: pointer;
+  padding: var(--space-4);
+}
+
+.sidebar-nav {
+  flex: 1;
+  padding: var(--space-16);
+  overflow-y: auto;
+}
+
+/* * APPLE UI MODIFICATION 
+ * Subtler nav hover, and a "pill" shape for active.
+ */
+.nav-item {
+  display: flex;
+  align-items: center;
+  gap: var(--space-12);
+  padding: var(--space-12) var(--space-16);
+  color: var(--color-text-secondary);
+  border-radius: var(--radius-base);
+  margin-bottom: var(--space-4);
+  transition: all 0.2s var(--ease-apple);
+  cursor: pointer;
+}
+
+.nav-item:hover {
+  background: none;
+  color: var(--color-primary);
+  transform: none;
+}
+
+.nav-item.active {
+  background: var(--color-primary);
+  color: var(--color-white);
+  box-shadow: var(--shadow-md);
+}
+
+.nav-item.active:hover {
+  color: var(--color-white);
+}
+
+.nav-icon {
+  font-size: 18px;
+}
+
+.nav-text {
+  font-size: var(--font-size-base);
+  font-weight: var(--font-weight-medium);
+}
+
+.sidebar-footer {
+  padding: var(--space-20);
+  border-top: 1px solid var(--color-border-subtle);
+}
+
+.user-profile {
+  display: flex;
+  align-items: center;
+  gap: var(--space-12);
+  margin-bottom: var(--space-12);
+}
+
+.user-avatar {
+  width: 40px;
+  height: 40px;
+  border-radius: var(--radius-full);
+  background: linear-gradient(135deg, var(--color-primary-purple), var(--color-accent-cyan));
+  color: var(--color-white);
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  font-weight: var(--font-weight-bold);
+  font-size: var(--font-size-base);
+}
+
+.user-info {
+  flex: 1;
+}
+
+.user-name {
+  font-size: var(--font-size-sm);
+  font-weight: var(--font-weight-medium);
+  color: var(--color-text);
+}
+
+.user-role {
+  font-size: var(--font-size-xs);
+  color: var(--color-text-secondary);
+}
+
+/* MAIN CONTENT */
+.main-content {
+  flex: 1;
+  margin-left: var(--sidebar-width);
+  display: flex;
+  flex-direction: column;
+}
+
+/* * APPLE UI MODIFICATION 
+ * Apply "frosted glass" to header.
+ */
+.header {
+  height: var(--header-height);
+  background: var(--color-surface);
+  backdrop-filter: blur(20px);
+  -webkit-backdrop-filter: blur(20px);
+  border-bottom: 1px solid var(--color-border-subtle);
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  padding: 0 var(--space-24);
+  position: sticky;
+  top: 0;
+  z-index: 90;
+}
+
+.header-title {
+  font-size: var(--font-size-2xl);
+  font-weight: var(--font-weight-bold);
+  background: linear-gradient(135deg, var(--color-primary-purple), var(--color-accent-cyan));
+  -webkit-background-clip: text;
+  -webkit-text-fill-color: transparent;
+  background-clip: text;
+}
+
+.header-center {
+  flex: 1;
+  display: flex;
+  justify-content: center;
+}
+
+.countdown {
+  display: flex;
+  gap: var(--space-16);
+  align-items: center;
+}
+
+.countdown-item {
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  min-width: 50px;
+}
+
+.countdown-value {
+  font-size: var(--font-size-2xl);
+  font-weight: var(--font-weight-bold);
+  color: var(--color-primary);
+  line-height: 1;
+}
+
+.countdown-label {
+  font-size: var(--font-size-xs);
+  color: var(--color-text-secondary);
+  margin-top: var(--space-4);
+}
+
+.header-right {
+  display: flex;
+  align-items: center;
+  gap: var(--space-20);
+}
+
+.notification-bell {
+  position: relative;
+  cursor: pointer;
+  padding: var(--space-8);
+  transition: transform var(--duration-fast) var(--ease-apple);
+}
+
+.notification-bell:hover {
+  transform: scale(1.1);
+}
+
+.bell-icon {
+  font-size: 24px;
+}
+
+.notification-badge {
+  position: absolute;
+  top: 0;
+  right: 0;
+  background: var(--color-error);
+  color: var(--color-white);
+  border-radius: var(--radius-full);
+  padding: 2px 6px;
+  font-size: 10px;
+  font-weight: var(--font-weight-bold);
+  min-width: 18px;
+  text-align: center;
+}
+
+.notification-badge.hidden {
+  display: none;
+}
+
+/* NOTIFICATION PANEL */
+.notification-panel {
+  position: fixed;
+  right: -400px;
+  top: 0;
+  bottom: 0;
+  width: 400px;
+  background: var(--color-surface-opaque);
+  box-shadow: var(--shadow-xl);
+  z-index: 200;
+  transition: right var(--duration-normal) var(--ease-apple);
+  display: flex;
+  flex-direction: column;
+}
+
+.notification-panel.open {
+  right: 0;
+}
+
+.notification-header {
+  padding: var(--space-20);
+  border-bottom: 1px solid var(--color-border);
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+}
+
+.notification-list {
+  flex: 1;
+  overflow-y: auto;
+  padding: var(--space-16);
+}
+
+.notification-item {
+  padding: var(--space-16);
+  border-bottom: 1px solid var(--color-border);
+  cursor: pointer;
+  transition: background var(--duration-fast) var(--ease-apple);
+}
+
+.notification-item:hover {
+  background: var(--color-bg-1);
+}
+
+.notification-item.unread {
+  background: var(--color-bg-1);
+  border-left: 3px solid var(--color-primary);
+}
+
+.notification-icon {
+  font-size: 20px;
+  margin-bottom: var(--space-8);
+}
+
+.notification-message {
+  font-size: var(--font-size-base);
+  color: var(--color-text);
+  margin-bottom: var(--space-8);
+}
+
+.notification-meta {
+  font-size: var(--font-size-sm);
+  color: var(--color-text-secondary);
+}
+
+.notification-timestamp {
+  font-size: var(--font-size-xs);
+  color: var(--color-text-secondary);
+  margin-top: var(--space-4);
+}
+
+/* * APPLE UI MODIFICATION 
+ * More padding and a max-width for "breathing room."
+ */
+.page-content {
+  flex: 1;
+  padding: var(--space-32);
+  overflow-y: auto;
+  max-width: 1400px; /* Constrains content */
+  width: 100%;
+  margin: 0 auto; /* Centers the content */
+}
+
+/* WELCOME BANNER */
+.welcome-banner {
+  background: linear-gradient(135deg, var(--color-primary-purple), var(--color-primary-indigo), var(--color-accent-cyan));
+  color: var(--color-white);
+  padding: var(--space-32);
+  border-radius: var(--radius-lg);
+  margin-bottom: var(--space-32);
+  position: relative;
+  overflow: hidden;
+}
+
+.welcome-banner::before {
+  content: '';
+  position: absolute;
+  top: -50%;
+  right: -10%;
+  width: 300px;
+  height: 300px;
+  background: rgba(255, 255, 255, 0.1);
+  border-radius: 50%;
+}
+
+.welcome-content {
+  position: relative;
+  z-index: 1;
+}
+
+.welcome-title {
+  font-size: var(--font-size-3xl);
+  margin-bottom: var(--space-8);
+}
+
+.role-badge {
+  display: inline-block;
+  padding: var(--space-6) var(--space-16);
+  background: rgba(255, 255, 255, 0.2);
+  border-radius: var(--radius-full);
+  font-size: var(--font-size-sm);
+  margin-bottom: var(--space-16);
+}
+
+.quick-actions {
+  display: flex;
+  gap: var(--space-12);
+  flex-wrap: wrap;
+  margin-top: var(--space-20);
+}
+
+.quick-actions .btn {
+  background: rgba(255, 255, 255, 0.2);
+  color: var(--color-white);
+  border: 1px solid rgba(255, 255, 255, 0.3);
+}
+
+.quick-actions .btn:hover {
+  background: rgba(255, 255, 255, 0.3);
+}
+
+/* STATS CARDS */
+.stats-grid {
+  display: grid;
+  grid-template-columns: repeat(auto-fit, minmax(250px, 1fr));
+  gap: var(--space-20);
+  margin-bottom: var(--space-32);
+}
+
+.stat-card {
+  background: var(--color-surface-opaque);
+  padding: var(--space-20);
+  border-radius: var(--radius-lg);
+  border: 1px solid var(--color-card-border);
+  box-shadow: var(--shadow-sm);
+  display: flex;
+  align-items: center;
+  gap: var(--space-16);
+  transition: transform 0.2s var(--ease-apple), box-shadow 0.2s var(--ease-apple);
+}
+
+.stat-card:hover {
+  transform: translateY(-3px);
+  box-shadow: var(--shadow-md);
+}
+
+.stat-icon {
+  width: 60px;
+  height: 60px;
+  border-radius: var(--radius-lg);
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  font-size: 28px;
+  flex-shrink: 0;
+}
+
+.stat-icon.bg-1 { background: var(--color-bg-1); }
+.stat-icon.bg-2 { background: var(--color-bg-2); }
+.stat-icon.bg-3 { background: var(--color-bg-3); }
+.stat-icon.bg-4 { background: var(--color-bg-4); }
+.stat-icon.bg-5 { background: var(--color-bg-5); }
+
+
+.stat-info {
+  flex: 1;
+}
+
+.stat-label {
+  font-size: var(--font-size-sm);
+  color: var(--color-text-secondary);
+  margin-bottom: var(--space-4);
+}
+
+.stat-value {
+  font-size: var(--font-size-3xl);
+  font-weight: var(--font-weight-bold);
+  color: var(--color-text);
+}
+
+.stat-change {
+  font-size: var(--font-size-sm);
+  color: var(--color-success);
+  margin-top: var(--space-4);
+}
+
+/* PROGRESS SECTION */
+.progress-section {
+  background: var(--color-surface-opaque);
+  padding: var(--space-24);
+  border-radius: var(--radius-lg);
+  border: 1px solid var(--color-card-border);
+  margin-bottom: var(--space-32);
+}
+
+.section-header {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  margin-bottom: var(--space-20);
+}
+
+/* * APPLE UI MODIFICATION 
+ * Bolder, clearer section titles.
+ */
+.section-title {
+  font-size: var(--font-size-xl);
+  font-weight: 600; /* Bolder */
+  letter-spacing: 0.2px;
+  color: var(--color-text);
+}
+
+.progress-circle-container {
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  padding: var(--space-24);
+}
+
+.progress-circle {
+  position: relative;
+  width: 200px;
+  height: 200px;
+}
+
+.progress-ring {
+  transform: rotate(-90deg);
+}
+
+.progress-ring-bg {
+  fill: none;
+  stroke: var(--color-bg-1);
+  stroke-width: 12;
+}
+
+.progress-ring-fill {
+  fill: none;
+  stroke: url(#progressGradient);
+  stroke-width: 12;
+  stroke-linecap: round;
+  transition: stroke-dashoffset 1s ease;
+}
+
+.progress-text {
+  position: absolute;
+  top: 50%;
+  left: 50%;
+  transform: translate(-50%, -50%);
+  text-align: center;
+}
+
+.progress-percentage {
+  font-size: var(--font-size-4xl);
+  font-weight: var(--font-weight-bold);
+  color: var(--color-primary);
+}
+
+.progress-label {
+  font-size: var(--font-size-sm);
+  color: var(--color-text-secondary);
+  margin-top: var(--space-4);
+}
+
+/* TEAM PROGRESS BARS */
+.team-progress-list {
+  display: flex;
+  flex-direction: column;
+  gap: var(--space-20);
+}
+
+.team-progress-item {
+  display: flex;
+  align-items: center;
+  gap: var(--space-16);
+}
+
+.team-info {
+  min-width: 180px;
+  display: flex;
+  align-items: center;
+  gap: var(--space-12);
+}
+
+.team-icon {
+  font-size: 24px;
+}
+
+.team-name {
+  font-size: var(--font-size-base);
+  font-weight: var(--font-weight-medium);
+  color: var(--color-text);
+}
+
+.progress-bar-container {
+  flex: 1;
+  height: 12px;
+  background: var(--color-bg-1);
+  border-radius: var(--radius-full);
+  overflow: hidden;
+}
+
+.progress-bar {
+  height: 100%;
+  border-radius: var(--radius-full);
+  transition: width 1s ease;
+  position: relative;
+  overflow: hidden;
+}
+
+.progress-bar::after {
+  content: '';
+  position: absolute;
+  top: 0;
+  left: 0;
+  bottom: 0;
+  right: 0;
+  background: linear-gradient(90deg, transparent, rgba(255, 255, 255, 0.3), transparent);
+  animation: shimmer 2s infinite;
+}
+
+@keyframes shimmer {
+  0% { transform: translateX(-100%); }
+  100% { transform: translateX(100%); }
+}
+
+.progress-bar.color-1 { background: linear-gradient(90deg, var(--color-primary-purple), var(--color-primary-indigo)); }
+.progress-bar.color-2 { background: linear-gradient(90deg, var(--color-accent-cyan), var(--color-accent-teal)); }
+.progress-bar.color-3 { background: linear-gradient(90deg, #F59E0B, #EF4444); }
+.progress-bar.color-4 { background: linear-gradient(90deg, #8B5CF6, #EC4899); }
+.progress-bar.color-5 { background: linear-gradient(90deg, #10B981, #3B82F6); }
+
+.progress-percentage-text {
+  min-width: 50px;
+  text-align: right;
+  font-size: var(--font-size-sm);
+  font-weight: var(--font-weight-semibold);
+  color: var(--color-text);
+}
+
+/* TASKS LIST */
+.tasks-section {
+  background: var(--color-surface-opaque);
+  padding: var(--space-24);
+  border-radius: var(--radius-lg);
+  border: 1px solid var(--color-card-border);
+  margin-bottom: var(--space-32);
+}
+
+.task-list {
+  display: flex;
+  flex-direction: column;
+  gap: var(--space-12);
+}
+
+.task-item {
+  display: flex;
+  align-items: center;
+  gap: var(--space-16);
+  padding: var(--space-16);
+  background: var(--color-background);
+  border-radius: var(--radius-base);
+  border: 1px solid var(--color-border);
+  transition: all var(--duration-fast) var(--ease-apple);
+  cursor: pointer;
+}
+
+.task-item:hover {
+  transform: translateX(4px);
+  box-shadow: var(--shadow-sm);
+}
+
+.task-priority {
+  width: 4px;
+  height: 40px;
+  border-radius: var(--radius-full);
+  flex-shrink: 0;
+}
+
+.task-priority.high { background: var(--color-error); }
+.task-priority.medium { background: var(--color-warning); }
+.task-priority.low { background: var(--color-info); }
+
+.task-details {
+  flex: 1;
+}
+
+.task-title {
+  font-size: var(--font-size-base);
+  font-weight: var(--font-weight-medium);
+  color: var(--color-text);
+  margin-bottom: var(--space-4);
+}
+
+.task-meta {
+  display: flex;
+  align-items: center;
+  gap: var(--space-12);
+  font-size: var(--font-size-sm);
+  color: var(--color-text-secondary);
+}
+
+.task-assignee {
+  display: flex;
+  align-items: center;
+  gap: var(--space-6);
+}
+
+.task-due-date {
+  display: flex;
+  align-items: center;
+  gap: var(--space-6);
+}
+
+.task-due-date.urgent {
+  color: var(--color-error);
+  font-weight: var(--font-weight-medium);
+}
+
+/* GRID LAYOUT */
+.grid-2 {
+  display: grid;
+  grid-template-columns: repeat(2, 1fr);
+  gap: var(--space-24);
+}
+
+.grid-3 {
+  display: grid;
+  grid-template-columns: repeat(3, 1fr);
+  gap: var(--space-20);
+}
+
+.grid-4 {
+  display: grid;
+  grid-template-columns: repeat(4, 1fr);
+  gap: var(--space-16);
+}
+
+/* KANBAN BOARD */
+.kanban-board {
+  display: grid;
+  grid-template-columns: repeat(3, 1fr);
+  gap: var(--space-20);
+  margin-top: var(--space-24);
+}
+
+.kanban-column {
+  background: var(--color-background);
+  border-radius: var(--radius-lg);
+  padding: var(--space-16);
+  min-height: 400px;
+}
+
+.kanban-header {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  margin-bottom: var(--space-16);
+  padding-bottom: var(--space-12);
+  border-bottom: 2px solid;
+}
+
+.kanban-header.todo { border-color: var(--color-info); }
+.kanban-header.inprogress { border-color: var(--color-warning); }
+.kanban-header.done { border-color: var(--color-success); }
+
+.kanban-title {
+  font-size: var(--font-size-base);
+  font-weight: var(--font-weight-semibold);
+  color: var(--color-text);
+}
+
+.kanban-count {
+  background: var(--color-secondary);
+  padding: var(--space-4) var(--space-8);
+  border-radius: var(--radius-full);
+  font-size: var(--font-size-sm);
+  font-weight: var(--font-weight-medium);
+}
+
+.kanban-cards {
+  display: flex;
+  flex-direction: column;
+  gap: var(--space-12);
+}
+
+.kanban-card {
+  background: var(--color-surface-opaque);
+  border-radius: var(--radius-base);
+  padding: var(--space-16);
+  border: 1px solid var(--color-card-border);
+  box-shadow: var(--shadow-sm);
+  cursor: pointer;
+  transition: all var(--duration-fast) var(--ease-apple);
+}
+
+.kanban-card:hover {
+  transform: translateY(-2px);
+  box-shadow: var(--shadow-md);
+}
+
+.kanban-card-title {
+  font-size: var(--font-size-base);
+  font-weight: 550; /* A good "semibold" */
+  color: var(--color-text);
+  margin-bottom: var(--space-8);
+}
+
+.kanban-card-description {
+  font-size: var(--font-size-sm);
+  color: var(--color-text-secondary);
+  margin-bottom: var(--space-12);
+  display: -webkit-box;
+  -webkit-line-clamp: 2;
+  -webkit-box-orient: vertical;
+  overflow: hidden;
+}
+
+.kanban-card-footer {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  font-size: var(--font-size-sm);
+}
+
+/* TABLE */
+.data-table {
+  width: 100%;
+  background: var(--color-surface-opaque);
+  border-radius: var(--radius-lg);
+  overflow: hidden;
+  border: 1px solid var(--color-card-border);
+}
+
+.data-table table {
+  width: 100%;
+  border-collapse: collapse;
+}
+
+.data-table th {
+  background: var(--color-background);
+  padding: var(--space-16);
+  text-align: left;
+  font-size: var(--font-size-sm);
+  font-weight: var(--font-weight-semibold);
+  color: var(--color-text);
+  border-bottom: 1px solid var(--color-border);
+}
+
+.data-table td {
+  padding: var(--space-16);
+  border-bottom: 1px solid var(--color-border);
+  font-size: var(--font-size-sm);
+  color: var(--color-text);
+}
+
+.data-table tr:hover {
+  background: var(--color-bg-1);
+}
+
+.table-actions {
+  display: flex;
+  gap: var(--space-8);
+}
+
+.icon-btn {
+  background: none;
+  border: none;
+  padding: var(--space-4);
+  cursor: pointer;
+  font-size: 18px;
+  transition: transform var(--duration-fast) var(--ease-apple);
+}
+
+.icon-btn:hover {
+  transform: scale(1.2);
+}
+
+/* MODAL */
+.modal-overlay {
+  position: fixed;
+  inset: 0;
+  background: rgba(0, 0, 0, 0.3); /* Softer overlay */
+  backdrop-filter: blur(10px);
+  -webkit-backdrop-filter: blur(10px);
+  z-index: 1000;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  padding: var(--space-20);
+  animation: fadeIn 0.2s ease;
+}
+
+@keyframes fadeIn {
+  from { opacity: 0; }
+  to { opacity: 1; }
+}
+
+.modal {
+  background: var(--color-surface-opaque);
+  border-radius: var(--radius-lg);
+  max-width: 600px;
+  width: 100%;
+  max-height: 90vh;
+  overflow-y: auto;
+  box-shadow: var(--shadow-xl);
+  animation: slideUp 0.3s var(--ease-apple);
+  border: 1px solid var(--color-border-subtle);
+}
+
+@keyframes slideUp {
+  from { transform: translateY(20px); opacity: 0; }
+  to { transform: translateY(0); opacity: 1; }
+}
+
+.modal-header {
+  padding: var(--space-24);
+  border-bottom: 1px solid var(--color-border-subtle);
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+}
+
+.modal-title {
+  font-size: var(--font-size-xl);
+  font-weight: var(--font-weight-semibold);
+}
+
+.modal-close {
+  background: none;
+  border: none;
+  font-size: 24px;
+  cursor: pointer;
+  padding: var(--space-4);
+  color: var(--color-text-secondary);
+  transition: color var(--duration-fast) var(--ease-apple);
+}
+
+.modal-close:hover {
+  color: var(--color-text);
+}
+
+.modal-body {
+  padding: var(--space-24);
+}
+
+.modal-footer {
+  padding: var(--space-24);
+  border-top: 1px solid var(--color-border-subtle);
+  display: flex;
+  gap: var(--space-12);
+  justify-content: flex-end;
+}
+
+/* UTILITIES */
+.text-center { text-align: center; }
+.text-right { text-align: right; }
+.mt-16 { margin-top: var(--space-16); }
+.mt-24 { margin-top: var(--space-24); }
+.mb-16 { margin-bottom: var(--space-16); }
+.mb-24 { margin-bottom: var(--space-24); }
+
+/* RESPONSIVE */
+@media (max-width: 768px) {
+  .sidebar {
+    transform: translateX(-100%);
+  }
   
-  // --- Drive Link Logic ---
-  const driveLinkInput = document.getElementById('taskDriveLinkInput');
-
-  // --- Add event listeners for slider and status ---
-  progressSlider.oninput = (e) => {
-    progressLabel.textContent = e.target.value + '%';
-  };
+  .sidebar.open {
+    transform: translateX(0);
+  }
   
-  document.getElementById('taskStatusInput').onchange = (e) => {
-    if (e.target.value === 'In Progress') {
-      progressContainer.style.display = 'block';
-    } else {
-      progressContainer.style.display = 'none';
-    }
-  };
-
-  const allTeams = getObjectValues(dbData.teams).map(t => ({ id: t.id, name: `${t.icon || '❓'} ${t.name}` }));
-  const allUsers = getObjectValues(dbData.users);
+  .sidebar-toggle {
+    display: block;
+  }
   
-  function updateAssignees(teamId, selectedAssigneeId = null) {
-    const teamMembers = allUsers
-      .filter(u => u.teamId === teamId || (u.role === 'admin' && !u.teamId))
-      .map(u => ({ id: u.uid, name: u.name }));
-    populateSelect('taskAssigneeInput', teamMembers, selectedAssigneeId);
+  .main-content {
+    margin-left: 0;
   }
-
-  document.getElementById('taskTeamInput').onchange = (e) => updateAssignees(e.target.value);
   
-  if (taskId && dbData.tasks[taskId]) {
-    // EDIT MODE
-    const task = dbData.tasks[taskId];
-    modalTitle.textContent = 'Edit Task';
-    document.getElementById('taskIdInput').value = taskId;
-    document.getElementById('taskTitleInput').value = task.title || '';
-    document.getElementById('taskDescInput').value = task.description || '';
-    document.getElementById('taskStatusInput').value = task.status || 'To Do';
-    document.getElementById('taskPriorityInput').value = task.priority || 'Medium';
-    document.getElementById('taskDueDateInput').value = task.dueDate || '';
-    
-    // ** NEW: Load existing drive link **
-    driveLinkInput.value = task.driveLink || '';
-
-    populateSelect('taskTeamInput', allTeams, task.teamId);
-    updateAssignees(task.teamId, task.assigneeId);
-
-    // --- NEW: Set slider value and visibility ---
-    const currentProgress = task.progress || 0;
-    progressSlider.value = currentProgress;
-    progressLabel.textContent = currentProgress + '%';
-    progressContainer.style.display = (task.status === 'In Progress') ? 'block' : 'none';
-    
-  } else {
-    // CREATE MODE
-    modalTitle.textContent = 'Create New Task';
-    const tomorrow = new Date();
-    tomorrow.setDate(tomorrow.getDate() + 1);
-    document.getElementById('taskDueDateInput').value = tomorrow.toISOString().split('T')[0];
-    let defaultTeamId = currentUser.teamId || allTeams[0]?.id;
-    populateSelect('taskTeamInput', allTeams, defaultTeamId);
-    updateAssignees(defaultTeamId);
-    
-    // --- NEW: Reset slider ---
-    progressSlider.value = 0;
-    progressLabel.textContent = '0%';
-    progressContainer.style.display = 'none';
-    driveLinkInput.value = ''; // Reset link input
+  .header-center {
+    display: none;
   }
-  modalOverlay.style.display = 'flex';
-}
-
-// REPLACE your old handleTaskFormSubmit function with this one
-async function handleTaskFormSubmit(event) {
-  event.preventDefault();
-  const saveBtn = document.getElementById('saveTaskBtn');
-  saveBtn.disabled = true;
-  saveBtn.textContent = 'Saving...';
   
-  const taskId = document.getElementById('taskIdInput').value;
-  const status = document.getElementById('taskStatusInput').value;
-
-  // 1. Collect all text-based data
-  const taskData = {
-    title: document.getElementById('taskTitleInput').value,
-    description: document.getElementById('taskDescInput').value,
-    teamId: document.getElementById('taskTeamInput').value,
-    assigneeId: document.getElementById('taskAssigneeInput').value,
-    status: status,
-    priority: document.getElementById('taskPriorityInput').value,
-    dueDate: document.getElementById('taskDueDateInput').value,
-    // ** NEW: Capture the Drive Link **
-    driveLink: document.getElementById('taskDriveLinkInput').value.trim(),
-  };
-
-  // --- NEW: Add progress based on status ---
-  if (status === 'Done') {
-    taskData.progress = 100;
-  } else if (status === 'In Progress') {
-    taskData.progress = parseInt(document.getElementById('taskProgressInput').value, 10);
-  } else {
-    taskData.progress = 0;
+  .grid-2,
+  .grid-3,
+  .grid-4,
+  .kanban-board {
+    grid-template-columns: 1fr;
   }
-
-  try {
-    // 3. Save the task data to Realtime Database
-    if (taskId) {
-      console.log(`Updating task ${taskId}`);
-      await db.ref(`tasks/${taskId}`).update(taskData);
-    } else {
-      console.log('Creating new task');
-      taskData.createdAt = new Date().toISOString();
-      taskData.creatorId = currentUser.uid;
-      await db.ref('tasks').push(taskData);
-    }
-    
-    closeModal(); // Close the modal on success
-  } catch (err) {
-    console.error("Error saving task:", err);
-    alert("Error saving task.");
-  } finally {
-    saveBtn.disabled = false;
-    saveBtn.textContent = 'Save Task';
-  }
-}
-
-function openTaskDetailModal(id) { 
-  openTaskModal(id);
-}
-
-// --- EVENT MODAL ---
-function openEventModal(eventId = null) {
-  const modalOverlay = document.getElementById('eventModalOverlay');
-  const modalTitle = document.getElementById('eventModalTitle');
-  const form = document.getElementById('eventForm');
-  form.reset();
-  document.getElementById('eventIdInput').value = '';
-
-  if (eventId && dbData.events[eventId]) {
-    // EDIT MODE
-    const event = dbData.events[eventId];
-    modalTitle.textContent = 'Edit Event';
-    document.getElementById('eventIdInput').value = eventId;
-    document.getElementById('eventNameInput').value = event.name || '';
-    document.getElementById('eventTypeInput').value = event.type || 'Technical';
-    document.getElementById('eventDateInput').value = event.date || '';
-    document.getElementById('eventVenueInput').value = event.venue || '';
-  } else {
-    // CREATE MODE
-    modalTitle.textContent = 'Add New Event';
-  }
-  modalOverlay.style.display = 'flex';
-}
-
-async function handleEventFormSubmit(event) {
-  event.preventDefault();
-  const eventId = document.getElementById('eventIdInput').value;
-  const eventData = {
-    name: document.getElementById('eventNameInput').value,
-    type: document.getElementById('eventTypeInput').value,
-    date: document.getElementById('eventDateInput').value,
-    venue: document.getElementById('eventVenueInput').value,
-  };
-  try {
-    if (eventId) {
-      await db.ref(`events/${eventId}`).update(eventData);
-    } else {
-      await db.ref('events').push(eventData);
-    }
-    closeModal();
-  } catch (err) {
-    console.error("Error saving event:", err);
-    alert("Error saving event.");
-  }
-}
-
-// --- SPONSOR MODAL (Updated) ---
-// REPLACE your old openSponsorModal function with this one
-function openSponsorModal(sponsorId = null) {
-  const modalOverlay = document.getElementById('sponsorModalOverlay');
-  const modalTitle = document.getElementById('sponsorModalTitle');
-  const form = document.getElementById('sponsorForm');
-
-  form.reset();
-  document.getElementById('sponsorIdInput').value = '';
-
-  if (sponsorId && dbData.sponsors[sponsorId]) {
-    // EDIT MODE
-    const sponsor = dbData.sponsors[sponsorId];
-    modalTitle.textContent = 'Edit Sponsor';
-    document.getElementById('sponsorIdInput').value = sponsorId;
-    document.getElementById('sponsorNameInput').value = sponsor.name || '';
-    document.getElementById('sponsorTierInput').value = sponsor.tier || 'General';
-    document.getElementById('sponsorAmountInput').value = sponsor.amount || ''; // ADDED
-    document.getElementById('sponsorDescInput').value = sponsor.description || ''; // ADDED
-  } else {
-    // CREATE MODE
-    modalTitle.textContent = 'Add New Sponsor';
-  }
-
-  modalOverlay.style.display = 'flex';
-}
-
-// REPLACE your old handleSponsorFormSubmit function with this one
-async function handleSponsorFormSubmit(event) {
-  event.preventDefault();
-  const sponsorId = document.getElementById('sponsorIdInput').value;
   
-  const sponsorData = {
-    name: document.getElementById('sponsorNameInput').value,
-    tier: document.getElementById('sponsorTierInput').value,
-    amount: document.getElementById('sponsorAmountInput').value, // ADDED
-    description: document.getElementById('sponsorDescInput').value, // ADDED
-  };
-
-  try {
-    if (sponsorId) {
-      console.log(`Updating sponsor ${sponsorId}`);
-      await db.ref(`sponsors/${sponsorId}`).update(sponsorData);
-    } else {
-      console.log('Creating new sponsor');
-      await db.ref('sponsors').push(sponsorData);
-    }
-    closeModal();
-  } catch (err) {
-    console.error("Error saving sponsor:", err);
-    alert("Error saving sponsor.");
+  .login-container {
+    flex-direction: column;
+  }
+  
+  .login-left {
+    min-height: 200px;
   }
 }
 
-// --- TEAM MODAL ---
-function openTeamModal(teamId = null) {
-  const modalOverlay = document.getElementById('teamModalOverlay');
-  const modalTitle = document.getElementById('teamModalTitle');
-  const form = document.getElementById('teamForm');
-  form.reset();
-  document.getElementById('teamIdInput').value = '';
-
-  if (teamId && dbData.teams[teamId]) {
-    // EDIT MODE
-    const team = dbData.teams[teamId];
-    modalTitle.textContent = 'Edit Team';
-    document.getElementById('teamIdInput').value = teamId;
-    document.getElementById('teamNameInput').value = team.name || '';
-    document.getElementById('teamIconInput').value = team.icon || '';
-  } else {
-    // CREATE MODE
-     modalTitle.textContent = 'Add New Team';
-  }
-  modalOverlay.style.display = 'flex';
+/* --- NEW: Progress Slider Styles --- */
+input[type="range"].form-control {
+  padding: 0;
+  border: none;
+  background: transparent;
+  box-shadow: none;
+  cursor: pointer;
 }
 
-async function handleTeamFormSubmit(event) {
-  event.preventDefault();
-  const teamId = document.getElementById('teamIdInput').value;
-  const teamData = {
-    name: document.getElementById('teamNameInput').value,
-    icon: document.getElementById('teamIconInput').value,
-  };
-  try {
-    if (teamId) {
-      await db.ref(`teams/${teamId}`).update(teamData);
-    } else {
-      await db.ref('teams').push(teamData);
-    }
-    closeModal();
-  } catch (err) {
-    console.error("Error saving team:", err);
-    alert("Error saving team.");
-  }
+/* --- NEW: Mini Progress Bar for Kanban Cards --- */
+.card-progress-container {
+  height: 6px;
+  background: var(--color-border-subtle);
+  border-radius: var(--radius-full);
+  overflow: hidden;
+  margin-top: var(--space-12);
 }
 
-// --- ANNOUNCEMENT MODAL ---
-function openAnnouncementModal() {
-  const modalOverlay = document.getElementById('announcementModalOverlay');
-  document.getElementById('announcementForm').reset();
-  modalOverlay.style.display = 'flex';
+.card-progress-bar {
+  height: 100%;
+  background: var(--color-primary);
+  border-radius: var(--radius-full);
+  transition: width 0.5s var(--ease-apple);
 }
-
-async function handleAnnouncementFormSubmit(event) {
-  event.preventDefault();
-  const postData = {
-    title: document.getElementById('announcementTitleInput').value,
-    content: document.getElementById('announcementContentInput').value,
-    authorId: currentUser.uid,
-    timestamp: new Date().toISOString()
-  };
-  try {
-    await db.ref('announcements').push(postData);
-    closeModal();
-  } catch (err) {
-    console.error("Error posting announcement:", err);
-    alert("Error posting announcement.");
-  }
-}
-
-// ----------------- END OF FILE -----------------

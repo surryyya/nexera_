@@ -409,7 +409,7 @@ function renderDashboard(container) {
                 <div class="task-title">${task.title}</div>
                 <div class="task-meta">
                   <span class="task-assignee">👤 ${getUserById(task.assigneeId).name}</span>
-                  <span class="status status--info">⚡ ${getTeamById(task.teamId).icon ? `<span class="material-symbols-outlined" style="font-size: 14px; vertical-align: middle;">${getTeamById(task.teamId).icon}</span>` : ''} ${getTeamById(task.teamId).name}</span>
+                  <span class="status status--info">⚡ ${getTeamById(task.teamId).icon || ''} ${getTeamById(task.teamId).name}</span>
                   <span class="task-due-date ${isUrgent(task.dueDate) ? 'urgent' : ''}">📅 ${formatDate(task.dueDate)}</span>
                 </div>
               </div>
@@ -426,7 +426,7 @@ function renderDashboard(container) {
             return `
               <div class="team-progress-item">
                 <div class="team-info">
-                  <span class="team-icon material-symbols-outlined">${team.icon || 'group'}</span>
+                  <span class="team-icon">${team.icon || '❓'}</span>
                   <span class="team-name">${team.name}</span>
                 </div>
                 <div class="progress-bar-container">
@@ -489,7 +489,7 @@ function renderKanbanCard(task) {
   const assignee = getUserById(task.assigneeId);
   const team = getTeamById(task.teamId);
   
-  // Progress bar for 'In Progress'
+  // --- NEW: Check for progress bar ---
   const progressBarHtml = (task.status === 'In Progress' && task.progress > 0)
     ? `
       <div class="card-progress-container">
@@ -498,19 +498,11 @@ function renderKanbanCard(task) {
     `
     : '';
 
-  // ** NEW: Link Icon if drive link exists **
-  const linkHtml = task.driveLink 
-    ? `<a href="${task.driveLink}" target="_blank" title="Open Drive Link" style="float: right; text-decoration: none; color: var(--color-primary);"><span class="material-symbols-outlined" style="font-size: 18px;">link</span></a>` 
-    : '';
-
   return `
     <div class="kanban-card" onclick="openTaskDetailModal('${task.id}')">
-      <div style="display: flex; justify-content: space-between; align-items: flex-start;">
-        <div class="kanban-card-title">${task.title}</div>
-        ${linkHtml}
-      </div>
+      <div class="kanban-card-title">${task.title}</div>
       <div class="kanban-card-description">${task.description || ''}</div>
-      ${currentUser.role === 'admin' ? `<div class="kanban-card-team" style="font-size:var(--font-size-sm);color:var(--color-text-secondary);margin-bottom:var(--space-8);">${team.icon ? `<span class="material-symbols-outlined" style="font-size: 16px; vertical-align: text-bottom;">${team.icon}</span>` : ''} ${team.name}</div>` : ''}
+      ${currentUser.role === 'admin' ? `<div class="kanban-card-team" style="font-size:var(--font-size-sm);color:var(--color-text-secondary);margin-bottom:var(--space-8);">${team.icon || ''} ${team.name}</div>` : ''}
       
       ${progressBarHtml} 
 
@@ -523,7 +515,8 @@ function renderKanbanCard(task) {
   `;
 }
 
-// ---------- RENDER: Teams ----------
+// ---------- RENDER: Teams (Updated) ----------
+// REPLACE your old renderTeams function with this one
 function renderTeams(container) {
   container.innerHTML = `
     <div style="display:flex;justify-content:space-between;align-items:center;margin-bottom:var(--space-24);">
@@ -538,6 +531,7 @@ function renderTeams(container) {
         const todoCount = teamTasks.filter(t => t.status === 'To Do').length;
         const doneCount = teamTasks.filter(t => t.status === 'Done').length;
 
+        // UPDATED LINE: This now creates a <span> tag instead of just printing the emoji
         const iconHtml = `<span class="material-symbols-outlined">${team.icon || 'group'}</span>`;
 
         return `
@@ -739,7 +733,7 @@ function renderAnalytics(container) {
           return `
             <div class="team-progress-item">
               <div class="team-info" style="min-width: 200px;">
-                <span class="team-icon material-symbols-outlined">${team.icon || 'group'}</span>
+                <span class="team-icon">${team.icon || '❓'}</span>
                 <span class="team-name">${team.name}</span>
               </div>
               <div class="progress-bar-container">
@@ -839,9 +833,6 @@ function openTaskModal(taskId = null) {
   const progressContainer = document.getElementById('taskProgressContainer');
   const progressSlider = document.getElementById('taskProgressInput');
   const progressLabel = document.getElementById('taskProgressLabel');
-  
-  // --- Drive Link Logic ---
-  const driveLinkInput = document.getElementById('taskDriveLinkInput');
 
   // --- Add event listeners for slider and status ---
   progressSlider.oninput = (e) => {
@@ -879,9 +870,6 @@ function openTaskModal(taskId = null) {
     document.getElementById('taskPriorityInput').value = task.priority || 'Medium';
     document.getElementById('taskDueDateInput').value = task.dueDate || '';
     
-    // ** NEW: Load existing drive link **
-    driveLinkInput.value = task.driveLink || '';
-
     populateSelect('taskTeamInput', allTeams, task.teamId);
     updateAssignees(task.teamId, task.assigneeId);
 
@@ -905,7 +893,6 @@ function openTaskModal(taskId = null) {
     progressSlider.value = 0;
     progressLabel.textContent = '0%';
     progressContainer.style.display = 'none';
-    driveLinkInput.value = ''; // Reset link input
   }
   modalOverlay.style.display = 'flex';
 }
@@ -929,8 +916,6 @@ async function handleTaskFormSubmit(event) {
     status: status,
     priority: document.getElementById('taskPriorityInput').value,
     dueDate: document.getElementById('taskDueDateInput').value,
-    // ** NEW: Capture the Drive Link **
-    driveLink: document.getElementById('taskDriveLinkInput').value.trim(),
   };
 
   // --- NEW: Add progress based on status ---
