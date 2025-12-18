@@ -1,7 +1,7 @@
 // app.js - Firebase Authentication version
 
 // ---------------- CONFIG ----------------
-const SYMPOSIUM_DATE = new Date('2026-02-27T10:00:00'); // adjust as needed
+const SYMPOSIUM_DATE = new Date('2026-02-27T10:00:00'); // Corrected to Feb 27, 2026
 const COLLEGE_DOMAIN = '@cit.edu.in';
 
 // ---------------- STATE ----------------
@@ -1118,3 +1118,5 @@ async function handleAnnouncementFormSubmit(event) {
     alert("Error posting announcement.");
   }
 }
+
+// ----------------- END OF FILE -----------------
