@@ -426,7 +426,7 @@ function renderDashboard(container) {
             return `
               <div class="team-progress-item">
                 <div class="team-info">
-                  <span class="team-icon">${team.icon || '❓'}</span>
+                  <span class="team-icon material-symbols-outlined">${team.icon || 'group'}</span>
                   <span class="team-name">${team.name}</span>
                 </div>
                 <div class="progress-bar-container">
@@ -733,7 +733,7 @@ function renderAnalytics(container) {
           return `
             <div class="team-progress-item">
               <div class="team-info" style="min-width: 200px;">
-                <span class="team-icon">${team.icon || '❓'}</span>
+                <span class="team-icon material-symbols-outlined">${team.icon || 'group'}</span>
                 <span class="team-name">${team.name}</span>
               </div>
               <div class="progress-bar-container">
